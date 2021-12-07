@@ -1,0 +1,13 @@
+name: eft-studies
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - ipywidgets
+  - nodejs
+  - pandas
+  - numpy
+  - bokeh
+  - matplotlib
+  - scipy
