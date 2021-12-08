@@ -1,0 +1,1 @@
+-1-1:1 + 0.069 * chg + -0.001 * cuhre + 0.677 * chg * chg + 0.000 * cuhre * cuhre
