@@ -11,3 +11,4 @@ dependencies:
   - bokeh
   - matplotlib
   - scipy
+  - mplhep

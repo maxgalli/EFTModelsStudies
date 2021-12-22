@@ -2303,15 +2303,11 @@
     ]
   ],
   "parameters": [
-    "cu",
-    "cd",
-    "cl",
     "cww",
     "cb",
     "chw",
     "chb",
-    "ca",
-    "cg"
+    "ca"
   ],
   "areas": [
     0.0019754917,
