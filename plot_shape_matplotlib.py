@@ -220,6 +220,7 @@ def main(args):
         main_ax.legend(loc="upper right")
         main_ax.set_xlim(left=edges[0], right=edges[-1])
         ratio_ax.set_ylim(bottom=0, top=4)
+        ratio_ax.set_xlabel(args.observable)
 
         fig.savefig("{}/{}_{}.pdf".format(output_dir, args.observable, parameter))
         fig.savefig("{}/{}_{}.png".format(output_dir, args.observable, parameter))
@@ -247,6 +248,16 @@ def main(args):
                 except NameError:
                     continue
 
+        # mplhep boilerplate
+        hep.cms.label(
+            loc=0, 
+            data=True, 
+            llabel="Work in Progress", 
+            lumi=35.9, 
+            ax=ax
+            )
+
+        # Set limits and stuff
         ax.set_xlabel(parameter)
         ax.set_xlim(
             coeff_test_values[parameter]["min"], 

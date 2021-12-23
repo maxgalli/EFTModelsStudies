@@ -27,7 +27,7 @@ Main starts here
 """
 args = parse_arguments()
 
-with open(args.production, "w") as f:
+with open(args.production, "r") as f:
     production_json = json.load(f)
 
 # Nominal (SM) histogram

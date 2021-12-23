@@ -35,5 +35,21 @@ ssh -Y -N -f -L localhost:8006:localhost:5006 gallim@t3ui01.psi.ch
 
 ### Preview
 
+![Alt Text](docs/imgs/eft-2.gif)
 
-![Alt Text](docs/imgs/eft.gif)
+
+## ```plot_shape_matplotlib.py```
+
+Same idea as before, except that here it is not interactive and shapes are plotted. 
+
+Example of command:
+
+```
+python plot_shape_matplotlib.py --production tests/HiggsTemplateCrossSections_pT_V.json --observable pTH --output-dir /work/gallim/DifferentialCombination_home/outputs/EFTModelStudies_out
+```
+
+
+<p float="left">
+  <img src="docs/imgs/pTH_ca.png" width="300" />
+  <img src="docs/imgs/sf_pTH_ca.png" width="300" /> 
+</p>
