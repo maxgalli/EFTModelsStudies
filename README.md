@@ -53,3 +53,11 @@ python plot_shape_matplotlib.py --production tests/HiggsTemplateCrossSections_pT
   <img src="docs/imgs/pTH_ca.png" width="300" />
   <img src="docs/imgs/sf_pTH_ca.png" width="300" /> 
 </p>
+
+
+## ```plot_shape_matt_predictions.py```
+
+This is probably the ultimate one to be used. It relies on parametrizations found in a directory with a structure like [this](https://github.com/maxgalli/EFTScalingEquations/tree/differentials_220506/equations/CMS-prelim-SMEFT-topU3l_22_05_05) in the specific repo [EFTScalingEquations](https://github.com/maxgalli/EFTScalingEquations). Run with e.g.:
+```
+python plot_shape_matt_predictions.py --input-dir /work/gallim/DifferentialCombination_home/EFTScalingEquations/equations/CMS-prelim-SMEFT-topU3l_22_05_05 --output-dir /eos/home-g/gallim/www/plots/DifferentialCombination/CombinationRun2/EFTModelsStudies/test
+```

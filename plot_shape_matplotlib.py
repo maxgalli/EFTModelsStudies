@@ -100,44 +100,97 @@ def parabola(x, a, b):
 
 
 def main(args):
-    n_tests = 6
     coeff_test_values = {
         "cu": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
         "cd": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
         "cl": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
         "cww": {
             "min": -0.01,
             "max": 0.01,
+            "n_tests": 4,
         },
         "cb": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
         "chw": {
             "min": -0.01,
             "max": 0.01,
+            "n_tests": 4,
         },
         "chb": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
         "ca": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
         "cg": {
             "min": -0.1,
             "max": 0.1,
+            "n_tests": 4,
         },
+        "cpwb": {
+            "min": -0.1,
+            "max": 0.1,
+            "n_tests": 4,
+        },
+        "cdp": {
+            "min": -0.5,
+            "max": 0.5,
+            "n_tests": 4,
+        },
+        "cwww": {
+            "min": -0.1,
+            "max": 0.1,
+            "n_tests": 4,
+        },
+        "cpg": {
+            "min": -0.01,
+            "max": 0.01,
+            "n_tests": 4,
+        },
+        "cpbb": {
+            "min": -0.5,
+            "max": 0.5,
+            "n_tests": 4,
+        },
+        "cpq3": {
+            "min": -0.1,
+            "max": 0.1,
+            "n_tests": 2,
+        },
+        "cpu": {
+            "min": -0.1,
+            "max": 0.1,
+            "n_tests": 4,
+        },
+        "ctp": {
+            "min": -0.5,
+            "max": 0.5,
+            "n_tests": 4,
+        },
+        "ctg": {
+            "min": -0.1,
+            "max": 0.1,
+            "n_tests": 4,
+        }
     }
     output_dir = args.output_dir
     
@@ -179,7 +232,7 @@ def main(args):
             parameter_variations = np.linspace(
                 coeff_test_values[parameter]["min"], 
                 coeff_test_values[parameter]["max"], 
-                n_tests
+                coeff_test_values[parameter]["n_tests"]
                 )
         except KeyError:
             raise KeyError(f"No entry for {parameter} in {coeff_test_values}.\nImplement it and try again")
@@ -219,7 +272,7 @@ def main(args):
         main_ax.set_ylim(bottom=0)
         main_ax.legend(loc="upper right")
         main_ax.set_xlim(left=edges[0], right=edges[-1])
-        ratio_ax.set_ylim(bottom=0, top=4)
+        ratio_ax.set_ylim(bottom=0, top=2)
         ratio_ax.set_xlabel(args.observable)
 
         fig.savefig("{}/{}_{}.pdf".format(output_dir, args.observable, parameter))

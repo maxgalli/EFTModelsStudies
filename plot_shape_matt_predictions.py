@@ -18,30 +18,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-edges = [
-    0,
-    5,
-    10,
-    15,
-    20,
-    25,
-    30,
-    35,
-    45,
-    60,
-    80,
-    100,
-    120,
-    140,
-    170,
-    200,
-    250,
-    350,
-    450,
-    1000,
-]
-
-
 def get_prediction(arr, mass, weights=None, interPRepl=None, massRepl=None):
     # Defined by Thomas in https://github.com/threiten/HiggsAnalysis-CombinedLimit/blob/d5d9ef377a7c69a8d4eaa366b47e7c81931e71d9/test/plotBinnedSigStr.py#L236
     # To be used with weights [1, 2.3, 1]
@@ -126,6 +102,7 @@ def main(args):
     dict_keys = list(production_dct.keys())
     sorted_keys = sorted(dict_keys, key=lambda x: float(x))
     production_dct = {k: production_dct[k] for k in sorted_keys}
+    edges = [float(k) for k in sorted_keys] + [10000.0]
 
     bin_names = []
     for l, r in zip(sorted_keys[:-1], sorted_keys[1:]):
@@ -189,8 +166,9 @@ def main(args):
         ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
         ax.set_xticks(range(len(edges)))
         ax.set_xticklabels(edges)
-        ax.tick_params(axis="x", which="major", labelsize=13)
+        ax.tick_params(axis="x", which="major", labelsize=10)
         ax.tick_params(axis="x", which="minor", bottom=False, top=False)
+        ax.set_xlim(0, len(edges) - 1)
         hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
         fig.savefig(f"{args.output_dir}/{poi}_spectrum.pdf")
         fig.savefig(f"{args.output_dir}/{poi}_spectrum.png")
