@@ -8,6 +8,9 @@ from scipy.optimize import minimize as scipy_minimize
 import logging
 import matplotlib.pyplot as plt
 import mplhep as hep
+from itertools import combinations
+from scipy import interpolate
+from scipy.interpolate import griddata
 
 hep.style.use("CMS")
 
@@ -171,11 +174,14 @@ class EFTFitter:
 
         return ret
 
-    def scan(self, how, expected=False, points=100):
+    def scan(self, how, expected=False, points=1000):
+        logging.info(f"Scanning {how} with expected={expected}")
         y0 = self.y0 if not expected else self.y0_asimov
         y_err = self.y_err if not expected else self.y_err_asimov
         result = {}
+        # 1D scans
         for poi_name, poi_info in self.pois_dict.items():
+            logging.info(f"Scanning {poi_name}")
             poi_values = np.linspace(poi_info["min"], poi_info["max"], points)
             chi_s = []
             if how == "profiled":
@@ -201,6 +207,69 @@ class EFTFitter:
             chi_s = np.array(chi_s)
             chi_s -= chi_s.min()
             result[poi_name] = {"values": poi_values, "chi_square": chi_s}
+
+        # 2D scans
+        if how == "profiled" and len(self.pois_dict) < 3:
+            logging.info("Skipping 2D scan")
+            return result
+
+        if len(self.pois_dict) > 1:
+            pois_combinations = list(combinations(self.pois_dict.keys(), 2))
+            points = int(np.sqrt(points))
+            for poi1, poi2 in pois_combinations:
+                logging.info(f"Scanning {poi1} vs {poi2}")
+                # poi values will now be a pair
+                poi_values_pairs = (
+                    np.mgrid[
+                        self.pois_dict[poi1]["min"] : self.pois_dict[poi1][
+                            "max"
+                        ] : points
+                        * 1j,
+                        self.pois_dict[poi2]["min"] : self.pois_dict[poi2][
+                            "max"
+                        ] : points
+                        * 1j,
+                    ]
+                    .reshape(2, -1)
+                    .T
+                )
+                chi_s = []
+                if how == "profiled":
+                    pois_to_float = {
+                        pn: pv
+                        for pn, pv in self.pois_dict.items()
+                        if pn not in [poi1, poi2]
+                    }
+                for poi_values_pair in poi_values_pairs:
+                    if how == "fixed":
+                        dcts = [
+                            {"name": poi1, "value": poi_values_pair[0]},
+                            {"name": poi2, "value": poi_values_pair[1]},
+                        ]
+                    elif how == "profiled":
+                        pois_to_freeze = {
+                            poi1: {"val": poi_values_pair[0]},
+                            poi2: {"val": poi_values_pair[1]},
+                        }
+                        dcts = self.minimize(pois_to_float, pois_to_freeze, y0, y_err)
+                        dcts.append({"name": poi1, "value": poi_values_pair[0]})
+                        dcts.append({"name": poi2, "value": poi_values_pair[1]})
+                    y = get_mu_prediction(
+                        dcts,
+                        self.mus,
+                        self.production_coeffs_dict,
+                        self.decay_coeffs_dict,
+                        self.channel,
+                    )
+                    chi = chi_square(y0, y, y_err)
+                    chi_s.append(chi)
+                chi_s = np.array(chi_s)
+                chi_s -= chi_s.min()
+                result[f"{poi1}_{poi2}"] = {
+                    "values1": poi_values_pairs[:, 0],
+                    "values2": poi_values_pairs[:, 1],
+                    "chi_square": chi_s,
+                }
 
         return result
 
@@ -262,20 +331,130 @@ def main(args):
     results = {}
     results["expected_fixed"] = fitter.scan(how="fixed", expected=True)
     results["expected_profiled"] = fitter.scan(how="profiled", expected=True)
-    logger.info(f"results: {results}")
+    # results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
+    # results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
+    logger.debug(f"results: {results}")
 
+    # plot
+    oned_styles = {
+        "line": {
+            "expected_fixed": {"color": "blue", "linestyle": "dashed"},
+            "expected_profiled": {"color": "blue", "linestyle": "solid"},
+            "observed_fixed": {"color": "red", "linestyle": "dashed"},
+            "observed_profiled": {"color": "red", "linestyle": "solid"},
+        },
+        "points": {
+            "expected_fixed": {
+                "color": "blue",
+                "marker": "o",
+                "fillstyle": "none",
+                "markersize": 5,
+            },
+            "expected_profiled": {
+                "color": "blue",
+                "marker": "o",
+                "fillstyle": "full",
+                "markersize": 5,
+            },
+            "observed_fixed": {
+                "color": "red",
+                "marker": "o",
+                "fillstyle": "none",
+                "markersize": 5,
+            },
+            "observed_profiled": {
+                "color": "red",
+                "marker": "o",
+                "fillstyle": "full",
+                "markersize": 5,
+            },
+        },
+    }
+    twod_styles = {
+        "expected_fixed": {"color": "blue"},
+        "expected_profiled": {"color": "green"},
+        "observed_fixed": {"color": "red"},
+        "observed_profiled": {"color": "orange"},
+    }
     pois = list(submodel_dict.keys())
     for poi in pois:
         fig, ax = plt.subplots()
         for result_name, result in results.items():
-            ax.plot(result[poi]["values"], result[poi]["chi_square"], label=result_name)
+            logger.info(f"Plotting for poi: {poi}, result_name: {result_name}")
+            func = interpolate.interp1d(
+                result[poi]["values"], result[poi]["chi_square"], kind="cubic"
+            )
+            x = np.linspace(
+                result[poi]["values"].min(), result[poi]["values"].max(), 1000
+            )
+            y = func(x)
+            ax.plot(
+                x, y, label=result_name, linewidth=1, **oned_styles["line"][result_name]
+            )
+            # plot dots
+            ax.plot(
+                result[poi]["values"],
+                result[poi]["chi_square"],
+                **oned_styles["points"][result_name],
+            )
         ax.set_xlabel(poi)
-        ax.set_ylabel("chi_square")
-        ax.set_ylim(0, 10)
+        ax.set_ylabel("$\Delta\chi^2$")
+        ax.set_ylim(-0.5, 8)
+        ax.set_xlim(result[poi]["values"].min(), result[poi]["values"].max())
+        # horizontal dashed line at 1 and 4
+        ax.axhline(y=0, color="black", linestyle="dashed")
+        ax.axhline(y=1, color="black", linestyle="dashed")
+        ax.axhline(y=4, color="black", linestyle="dashed")
         ax.legend()
         logger.info(f"Saving plots for poi {poi}")
         fig.savefig(f"{args.output_dir}/{poi}.png")
         fig.savefig(f"{args.output_dir}/{poi}.pdf")
+    pois_pairs = list(combinations(pois, 2))
+    for poi1, poi2 in pois_pairs:
+        fig, ax = plt.subplots()
+        for result_name, result in results.items():
+            logger.info(f"Plotting for poi: {poi1}, {poi2}, result_name: {result_name}")
+            try:
+                x, y = np.mgrid[
+                    result[f"{poi1}_{poi2}"]["values1"]
+                    .min() : result[f"{poi1}_{poi2}"]["values1"]
+                    .max() : 100j,
+                    result[f"{poi1}_{poi2}"]["values2"]
+                    .min() : result[f"{poi1}_{poi2}"]["values2"]
+                    .max() : 100j,
+                ]
+                z = griddata(
+                    (
+                        result[f"{poi1}_{poi2}"]["values1"],
+                        result[f"{poi1}_{poi2}"]["values2"],
+                    ),
+                    result[f"{poi1}_{poi2}"]["chi_square"],
+                    (x, y),
+                    method="cubic",
+                )
+                cs = ax.contour(
+                    x,
+                    y,
+                    z,
+                    levels=[1.0, 4.0],
+                    linewidths=2,
+                    linestyles=["solid", "dashed"],
+                    colors=[
+                        twod_styles[result_name]["color"],
+                        twod_styles[result_name]["color"],
+                    ],
+                )
+                levels = ["$1\sigma$", "$2\sigma$"]
+                for i, cl in enumerate(levels):
+                    cs.collections[i].set_label(f"{result_name} {cl}")
+            except KeyError:
+                pass
+        ax.set_xlabel(poi1)
+        ax.set_ylabel(poi2)
+        ax.legend()
+        logger.info(f"Saving plots for pois {poi1} vs {poi2}")
+        fig.savefig(f"{args.output_dir}/{poi1}_{poi2}.png")
+        fig.savefig(f"{args.output_dir}/{poi1}_{poi2}.pdf")
 
 
 if __name__ == "__main__":
