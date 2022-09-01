@@ -8,7 +8,7 @@ from scipy.optimize import minimize as scipy_minimize
 import logging
 import matplotlib.pyplot as plt
 import mplhep as hep
-from itertools import combinations
+from itertools import combinations, product
 from scipy import interpolate
 from scipy.interpolate import griddata
 
@@ -42,6 +42,14 @@ def parse_arguments():
 
     parser.add_argument("--output-dir", type=str, required=True, help="")
 
+    parser.add_argument("--suffix", type=str, required=False, default="", help="")
+
+    parser.add_argument("--linear", action="store_true", help="Fit only linear terms")
+
+    parser.add_argument(
+        "--quadratic", action="store_true", help="Fit only quadratic terms"
+    )
+
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
 
     return parser.parse_args()
@@ -58,45 +66,142 @@ def corr_to_cov(corr, standard_deviations):
     return dsd.dot(corr).dot(dsd)
 
 
-def extract_coeffs(pois, dct):
+def extract_coeffs(
+    pois, dct, linear_only=False, quadratic_only=False, print_coeffs=False
+):
     """
-    pois is a list of dicts with shape {'name': name, 'value': value}
+    pois is a list of dicts with shape {'name': name, 'value': value} in case of print_coeffs=False, otherwise it is just a list of strings
     return 1D array with lenght len(self.mus)
     """
-    mu = 1
-    for poi in pois:
-        # linear
-        try:
-            mu += dct[f"A_{poi['name']}"] * poi["value"]
-        except KeyError:
-            pass
-        # quadratic
-        try:
-            mu += dct[f"B_{poi['name']}_2"] * poi["value"] ** 2
-        except KeyError:
-            pass
-        # mixed
+    if not print_coeffs:
+        mu = 1
         for poi in pois:
-            try:
-                mu += (
-                    dct[f"B_{poi['name']}_{poi['name']}"] * poi["value"] * poi["value"]
-                )
-            except KeyError:
-                pass
+            # logging.debug(f"Extract coeff for {poi['name']}")
+            # linear
+            if not quadratic_only:
+                try:
+                    mu += dct[f"A_{poi['name']}"] * poi["value"]
+                    # logging.debug("Linear term: {}".format(dct[f"A_{poi['name']}"]))
+                except KeyError:
+                    pass
+            # quadratic
+            if not linear_only:
+                try:
+                    mu += dct[f"B_{poi['name']}_2"] * poi["value"] ** 2
+                    # logging.debug("Quadratic term: {}".format(dct[f"B_{poi['name']}_2"]))
+                except KeyError:
+                    pass
+        # mixed
+        prods = product(pois, pois)
+        if len(pois) > 1:
+            for prod in prods:
+                poi1 = prod[0]
+                poi2 = prod[1]
+                try:
+                    mu += (
+                        dct[f"B_{poi1['name']}_{poi2['name']}"]
+                        * poi1["value"]
+                        * poi2["value"]
+                    )
+                    # logging.debug(
+                    #    "Mixed term: {}".format(dct[f"B_{poi['name']}_{poi['name']}"])
+                    # )
+                except KeyError:
+                    pass
+    else:
+        mu = "1"
+        for poi in pois:
+            if not quadratic_only:
+                # linear
+                try:
+                    mu += " + {} * {}".format(dct[f"A_{poi}"], poi)
+                except KeyError:
+                    pass
+            # quadratic
+            if not linear_only:
+                try:
+                    mu += " + {} * {}^2".format(dct[f"B_{poi}_2"], poi)
+                except KeyError:
+                    pass
+        # mixed
+        prods = product(pois, pois)
+        if len(pois) > 1:
+            for prod in prods:
+                poi1 = prod[0]
+                poi2 = prod[1]
+                try:
+                    mu += " + {} * {} * {}".format(dct[f"B_{poi1}_{poi2}"], poi1, poi2)
+                except KeyError:
+                    pass
     return mu
 
 
-def get_mu_prediction(pois, mus, production_dct, decays_dct, channel):
+def get_mu_prediction(
+    pois,
+    mus,
+    production_dct,
+    decays_dct,
+    channel,
+    linear_only=False,
+    quadratic_only=False,
+    print_coeffs=False,
+):
     """
     pois is a list of dicts with shape {'name': name, 'value': value}
     """
-    pred_mus = []
-    br_num = extract_coeffs(pois, decays_dct[channel])
-    br_den = extract_coeffs(pois, decays_dct["tot"])
-    for mu in mus:
-        prod_term = extract_coeffs(pois, production_dct[mu])
-        pred_mus.append(prod_term * br_num / br_den)
-    return np.array(pred_mus)
+    if not print_coeffs:
+        pred_mus = []
+        br_num = extract_coeffs(
+            pois,
+            decays_dct[channel],
+            linear_only=linear_only,
+            quadratic_only=quadratic_only,
+        )
+        br_den = extract_coeffs(
+            pois,
+            decays_dct["tot"],
+            linear_only=linear_only,
+            quadratic_only=quadratic_only,
+        )
+        for mu in mus:
+            prod_term = extract_coeffs(
+                pois,
+                production_dct[mu],
+                linear_only=linear_only,
+                quadratic_only=quadratic_only,
+            )
+            pred_mus.append(prod_term * br_num / br_den)
+            # pred_mus.append(prod_term)
+        return np.array(pred_mus)
+    else:
+        pred_mus = {}
+        br_num = extract_coeffs(
+            pois,
+            decays_dct[channel],
+            linear_only=linear_only,
+            print_coeffs=True,
+            quadratic_only=quadratic_only,
+        )
+        br_den = extract_coeffs(
+            pois,
+            decays_dct["tot"],
+            linear_only=linear_only,
+            print_coeffs=True,
+            quadratic_only=quadratic_only,
+        )
+        for mu in mus:
+            prod_term = extract_coeffs(
+                pois,
+                production_dct[mu],
+                linear_only=linear_only,
+                print_coeffs=True,
+                quadratic_only=quadratic_only,
+            )
+            pred_mus[mu] = {}
+            pred_mus[mu]["prod"] = prod_term
+            pred_mus[mu]["br_num"] = br_num
+            pred_mus[mu]["br_den"] = br_den
+        return pred_mus
 
 
 class EFTFitter:
@@ -108,6 +213,8 @@ class EFTFitter:
         production_coeffs_dict,
         decay_coeffs_dict,
         channel,
+        linear=False,
+        quadratic=False,
     ):
         """
         """
@@ -116,6 +223,8 @@ class EFTFitter:
         self.production_coeffs_dict = production_coeffs_dict
         self.decay_coeffs_dict = decay_coeffs_dict
         self.channel = channel
+        self.linear = linear
+        self.quadratic = quadratic
         if channel == "hgg":
             self.channel = "gamgam"
 
@@ -188,19 +297,22 @@ class EFTFitter:
                 pois_to_float = {
                     pn: pv for pn, pv in self.pois_dict.items() if pn != poi_name
                 }
-            for poi_value in poi_values:
+            for i, poi_value in enumerate(poi_values):
                 if how == "fixed":
                     dcts = [{"name": poi_name, "value": poi_value}]
                 elif how == "profiled":
                     pois_to_freeze = {poi_name: {"val": poi_value}}
                     dcts = self.minimize(pois_to_float, pois_to_freeze, y0, y_err)
                     dcts.append({"name": poi_name, "value": poi_value})
+                logging.debug(f"Scanning point {poi_value}, ({i}/{len(poi_values)})")
                 y = get_mu_prediction(
                     dcts,
                     self.mus,
                     self.production_coeffs_dict,
                     self.decay_coeffs_dict,
                     self.channel,
+                    linear_only=self.linear,
+                    quadratic_only=self.quadratic,
                 )
                 chi = chi_square(y0, y, y_err)
                 chi_s.append(chi)
@@ -260,6 +372,8 @@ class EFTFitter:
                         self.production_coeffs_dict,
                         self.decay_coeffs_dict,
                         self.channel,
+                        linear_only=self.linear,
+                        quadratic_only=self.quadratic,
                     )
                     chi = chi_square(y0, y, y_err)
                     chi_s.append(chi)
@@ -273,12 +387,28 @@ class EFTFitter:
 
         return result
 
+    def print_scaling_equations(self):
+        scaling_equations = {}
+        pois = list(self.pois_dict.keys())
+        predictions_dct = get_mu_prediction(
+            pois,
+            self.mus,
+            self.production_coeffs_dict,
+            self.decay_coeffs_dict,
+            self.channel,
+            linear_only=self.linear,
+            quadratic_only=self.quadratic,
+            print_coeffs=True,
+        )
+        print(json.dumps(predictions_dct, indent=4))
+
 
 def main(args):
     if args.debug:
         logger = setup_logging(level="DEBUG")
     else:
         logger = setup_logging(level="INFO")
+    os.makedirs(args.output_dir, exist_ok=True)
 
     with open(args.mu_json) as f:
         mus_dict = json.load(f)
@@ -290,6 +420,7 @@ def main(args):
         correlation_matrix = np.array(list_of_lists)
     with open(args.submodel_yaml) as f:
         submodel_dict = yaml.load(f)
+    submodel_name = args.submodel_yaml.split("/")[-1].split(".")[0]
     decays_file = f"{args.prediction_dir}/decay.json"
     with open(decays_file, "r") as f:
         decays_dct = json.load(f)
@@ -326,7 +457,12 @@ def main(args):
         production_dct,
         decays_dct,
         args.channel,
+        args.linear,
+        args.quadratic,
     )
+
+    logger.info("First printing scaling equations")
+    fitter.print_scaling_equations()
 
     results = {}
     results["expected_fixed"] = fitter.scan(how="fixed", expected=True)
@@ -338,10 +474,10 @@ def main(args):
     # plot
     oned_styles = {
         "line": {
-            "expected_fixed": {"color": "blue", "linestyle": "dashed"},
-            "expected_profiled": {"color": "blue", "linestyle": "solid"},
-            "observed_fixed": {"color": "red", "linestyle": "dashed"},
-            "observed_profiled": {"color": "red", "linestyle": "solid"},
+            "expected_fixed": {"color": "blue", "linestyle": "solid"},
+            "expected_profiled": {"color": "green", "linestyle": "solid"},
+            "observed_fixed": {"color": "red", "linestyle": "solid"},
+            "observed_profiled": {"color": "orange", "linestyle": "solid"},
         },
         "points": {
             "expected_fixed": {
@@ -351,7 +487,7 @@ def main(args):
                 "markersize": 5,
             },
             "expected_profiled": {
-                "color": "blue",
+                "color": "green",
                 "marker": "o",
                 "fillstyle": "full",
                 "markersize": 5,
@@ -363,7 +499,7 @@ def main(args):
                 "markersize": 5,
             },
             "observed_profiled": {
-                "color": "red",
+                "color": "orange",
                 "marker": "o",
                 "fillstyle": "full",
                 "markersize": 5,
@@ -388,13 +524,12 @@ def main(args):
                 result[poi]["values"].min(), result[poi]["values"].max(), 1000
             )
             y = func(x)
-            ax.plot(
-                x, y, label=result_name, linewidth=1, **oned_styles["line"][result_name]
-            )
+            ax.plot(x, y, linewidth=1, **oned_styles["line"][result_name])
             # plot dots
             ax.plot(
                 result[poi]["values"],
                 result[poi]["chi_square"],
+                label=result_name,
                 **oned_styles["points"][result_name],
             )
         ax.set_xlabel(poi)
@@ -407,8 +542,8 @@ def main(args):
         ax.axhline(y=4, color="black", linestyle="dashed")
         ax.legend()
         logger.info(f"Saving plots for poi {poi}")
-        fig.savefig(f"{args.output_dir}/{poi}.png")
-        fig.savefig(f"{args.output_dir}/{poi}.pdf")
+        fig.savefig(f"{args.output_dir}/{poi}_{args.suffix}.png")
+        fig.savefig(f"{args.output_dir}/{poi}_{args.suffix}.pdf")
     pois_pairs = list(combinations(pois, 2))
     for poi1, poi2 in pois_pairs:
         fig, ax = plt.subplots()
@@ -437,6 +572,7 @@ def main(args):
                     y,
                     z,
                     levels=[1.0, 4.0],
+                    # levels=[0.5, 2.0],
                     linewidths=2,
                     linestyles=["solid", "dashed"],
                     colors=[
@@ -453,8 +589,8 @@ def main(args):
         ax.set_ylabel(poi2)
         ax.legend()
         logger.info(f"Saving plots for pois {poi1} vs {poi2}")
-        fig.savefig(f"{args.output_dir}/{poi1}_{poi2}.png")
-        fig.savefig(f"{args.output_dir}/{poi1}_{poi2}.pdf")
+        fig.savefig(f"{args.output_dir}/{poi1}-{poi2}_{args.suffix}.png")
+        fig.savefig(f"{args.output_dir}/{poi1}-{poi2}_{args.suffix}.pdf")
 
 
 if __name__ == "__main__":

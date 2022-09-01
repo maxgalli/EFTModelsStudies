@@ -61,3 +61,9 @@ This is probably the ultimate one to be used. It relies on parametrizations foun
 ```
 python plot_shape_matt_predictions.py --input-dir /work/gallim/DifferentialCombination_home/EFTScalingEquations/equations/CMS-prelim-SMEFT-topU3l_22_05_05 --output-dir /eos/home-g/gallim/www/plots/DifferentialCombination/CombinationRun2/EFTModelsStudies/test
 ```
+
+## ```chi_square_fitter.py```
+
+# Full Preliminar Study of a Model
+
+This whole thing can be used to perform a preliminar study of SMEFT (but also kappa-framework) models that are then fitted in Combine using the full likelihood. In order to do this, we refer to the [Run2 Differential Combination](https://gitlab.cern.ch/magalli/DifferentialCombinationRun2) and in particular the files in ```metadata/SMEFT```. These files define subgroups of POIs and their ranges to be used together with the above mentioned EFTScalingEquations.

@@ -9,8 +9,7 @@ import numpy as np
 import scipy.interpolate as itr
 import mplhep as hep
 import itertools
-
-from chi_square_fitter import get_mu_prediction
+from itertools import combinations
 
 
 def parse_arguments():
@@ -239,29 +238,119 @@ def main(args):
             production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
                 poi, production_dct, decays_dct
             )
-            fig, ax = plt.subplots()
+            fig, (ax, rax) = plt.subplots(
+                nrows=2, ncols=1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
+            )
             mus_stack = []
+            mus_ref_stack = []
             for n, k in enumerate(production_coeffs):
                 mus = mu(poi_range, production_coeffs[k], decay_coeffs, tot_coeffs)
+                mus_ref = mu(
+                    np.array(0), production_coeffs[k], decay_coeffs, tot_coeffs
+                )
                 mus_stack.append(mus)
+                mus_ref_stack.append(mus_ref)
             mus_stack = np.vstack(mus_stack)
+            mus_ref_stack = np.vstack(mus_ref_stack)
+            hist_ref = sm_prediction * mus_ref_stack[:, 0]
+            ax.stairs(hist_ref, range(len(edges)), label="SM", color="black")
+            rax.stairs(
+                hist_ref / hist_ref, range(len(edges)), label="SM", color="black"
+            )
             for n, i in enumerate(poi_range):
                 hist = sm_prediction * mus_stack[:, n]
+                hist_ratio = hist / hist_ref
                 print(f"Yields for {poi} = {i}: {list(hist)}")
                 print(f"Mus for {poi} = {i}: {list(mus_stack[:, n])}")
                 ax.stairs(hist, range(len(edges)), label=f"{poi} = {i}")
+                rax.stairs(hist_ratio, range(len(edges)), label=f"{poi} = {i}")
             ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
             ax.set_yscale("log")
-            ax.set_xlabel("$p_{T}$")
+            rax.set_xlabel("$p_{T}$")
             ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
-            ax.set_xticks(range(len(edges)))
-            ax.set_xticklabels(edges)
+            rax.set_ylabel("SMEFT/SM")
+            rax.set_xticks(range(len(edges)))
+            rax.set_xticklabels(edges)
             ax.tick_params(axis="x", which="major", labelsize=10)
             ax.tick_params(axis="x", which="minor", bottom=False, top=False)
-            ax.set_xlim(0, len(edges) - 1)
+            rax.tick_params(axis="x", which="major", labelsize=10)
+            rax.tick_params(axis="x", which="minor", bottom=False, top=False)
+            rax.set_xlim(0, len(edges) - 1)
             hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
             fig.savefig(f"{args.output_dir}/{poi}_spectrum.pdf")
             fig.savefig(f"{args.output_dir}/{poi}_spectrum.png")
+
+        # now spectra for combinations of the two
+        combs = list(combinations(pois, 2))
+        for comb in combs:
+            poi1 = comb[0]
+            poi2 = comb[1]
+            fig, (ax, rax) = plt.subplots(
+                nrows=2, ncols=1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
+            )
+            production_coeffs, decay_coeffs, tot_coeffs = get_coeffs_2d(
+                poi1, poi2, production_dct, decays_dct
+            )
+            poi_range1 = np.linspace(pois_dct[poi1]["min"], pois_dct[poi1]["max"], 6)
+            poi_range2 = np.flip(
+                np.linspace(pois_dct[poi2]["min"], pois_dct[poi2]["max"], 6)
+            )
+            mus_stack = []
+            mus_ref_stack = []
+            for n, k in enumerate(production_coeffs):
+                mus = mu2d(
+                    poi_range1,
+                    poi_range2,
+                    production_coeffs[k],
+                    decay_coeffs,
+                    tot_coeffs,
+                )
+                mus_ref = mu2d(
+                    np.array(0),
+                    np.array(0),
+                    production_coeffs[k],
+                    decay_coeffs,
+                    tot_coeffs,
+                )
+                mus_stack.append(mus)
+                mus_ref_stack.append(mus_ref)
+            mus_stack = np.vstack(mus_stack)
+            mus_ref_stack = np.vstack(mus_ref_stack)
+            hist_ref = sm_prediction * mus_ref_stack[:, 0]
+            ax.stairs(hist_ref, range(len(edges)), label="SM", color="black")
+            rax.stairs(
+                hist_ref / hist_ref, range(len(edges)), label="SM", color="black"
+            )
+            for n, i in enumerate(zip(poi_range1, poi_range2)):
+                hist = sm_prediction * mus_stack[:, n]
+                hist_ratio = hist / hist_ref
+                print(f"Yields for {poi1} = {i[0]}, {poi2} = {i[1]}: {list(hist)}")
+                print(
+                    f"Mus for {poi1} = {i[0]}, {poi2} = {i[1]}: {list(mus_stack[:, n])}"
+                )
+                ax.stairs(
+                    hist, range(len(edges)), label=f"{poi1} = {i[0]}, {poi2} = {i[1]}"
+                )
+                rax.stairs(
+                    hist_ratio,
+                    range(len(edges)),
+                    label=f"{poi1} = {i[0]}, {poi2} = {i[1]}",
+                )
+            ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
+            ax.set_yscale("log")
+            rax.set_xlabel("$p_{T}$")
+            ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
+            rax.set_ylabel("SMEFT/SM")
+            rax.set_xticks(range(len(edges)))
+            rax.set_xticklabels(edges)
+            ax.tick_params(axis="x", which="major", labelsize=10)
+            ax.tick_params(axis="x", which="minor", bottom=False, top=False)
+            rax.tick_params(axis="x", which="major", labelsize=10)
+            rax.tick_params(axis="x", which="minor", bottom=False, top=False)
+            rax.set_xlim(0, len(edges) - 1)
+            hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
+            fig.savefig(f"{args.output_dir}/{poi1}-{poi2}_spectrum.pdf")
+            fig.savefig(f"{args.output_dir}/{poi1}-{poi2}_spectrum.png")
 
     if args.study == "2D":
         hep.style.use("CMS")
