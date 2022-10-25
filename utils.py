@@ -3,8 +3,8 @@ import json
 
 
 robusthesse_paths = {
-    "hgg": "input/SMEFT/Hgg/robustHesseAsimovBestFit.root",
-    "hzz": "input/SMEFT/HZZ/robustHesse_POSTFIT_HZZ.root",
+    "hgg": "input/SMEFT/expected/Hgg/robustHesseAsimovBestFit.root",
+    "hzz": "input/SMEFT/expected/HZZ/robustHesse_POSTFIT_HZZ.root",
 }
 
 ggH_production_files = {
