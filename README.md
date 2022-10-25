@@ -64,6 +64,23 @@ python plot_shape_matt_predictions.py --input-dir /work/gallim/DifferentialCombi
 
 ## ```chi_square_fitter.py```
 
+## ```pca.py```
+
+Here we perform a Principal Component Analysis in order to find out along which axes the information is "flat" and discard them. Apart from plotting the rotation matrix and the new SMEFT coefficients for the eigenvectors, the first part attempts to plot a matrix similar to the one shown at page 34 of [this paper](https://arxiv.org/pdf/2105.00006.pdf). 
+
+An example of command is 
+```
+python pca.py --prediction-dir /work/gallim/DifferentialCombination_home/EFTScalingEquations/equations/CMS-prelim-SMEFT-topU3l_22_05_05 --model-yaml /work/gallim/DifferentialCombination_home/DifferentialCombinationRun2/metadata/SMEFT/220926Atlas.yml --channels hgg hzz --output-dir /eos/home-g/gallim/www/plots/DifferentialCombination/CombinationRun2/EFTModelsStudies/SMEFT/PCA/CMS-prelim-SMEFT-topU3l_22_05_05-220926Atlas
+```
+
+where the arguments are hearby described:
+- ```--prediction-dir```: path to one of the directories in [EFTScalingEquations](https://github.com/maxgalli/EFTScalingEquations/tree/differentials_220506)
+- ```--model-yaml```: path to a yaml file like the ones stored in [the main project repo](https://gitlab.cern.ch/magalli/DifferentialCombinationRun2), which can be found under ```DifferentialCombinationRun2/metadata/SMEFT``` with the conventions described in the documentation there
+- ```channels```: list of decay channels
+- ```--output-dir```: where the matrices are going to be dumped
+
+Note that a new directory will be created next to the one specified in ```--prediction-dir```.
+
 # Full Preliminar Study of a Model
 
 This whole thing can be used to perform a preliminar study of SMEFT (but also kappa-framework) models that are then fitted in Combine using the full likelihood. In order to do this, we refer to the [Run2 Differential Combination](https://gitlab.cern.ch/magalli/DifferentialCombinationRun2) and in particular the files in ```metadata/SMEFT```. These files define subgroups of POIs and their ranges to be used together with the above mentioned EFTScalingEquations.
