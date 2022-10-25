@@ -403,6 +403,35 @@ class EFTFitter:
         print(json.dumps(predictions_dct, indent=4))
 
 
+def refactor_predictions(prediction_dir, channel):
+    decays_file = f"{prediction_dir}/decay.json"
+    with open(decays_file, "r") as f:
+        decays_dct = json.load(f)
+    production_file = (
+        f"{prediction_dir}/differentials/{channel}/ggH_SMEFTatNLO_pt_gg.json"
+    )
+    with open(production_file, "r") as f:
+        tmp_production_dct = json.load(f)
+    dict_keys = list(tmp_production_dct.keys())
+    sorted_keys = sorted(dict_keys, key=lambda x: float(x))
+    tmp_production_dct = {k: tmp_production_dct[k] for k in sorted_keys}
+    edges = [float(k) for k in sorted_keys] + [10000.0]
+    production_dct = {}
+    for edge, next_edge in zip(edges[:-1], edges[1:]):
+        production_dct[
+            "r_smH_PTH_{}_{}".format(
+                str(edge).replace(".0", ""), str(next_edge).replace(".0", "")
+            )
+        ] = tmp_production_dct[str(edge)]
+    if channel == "hgg":
+        key_to_remove = "r_smH_PTH_450_10000"
+        key_dct = production_dct[key_to_remove]
+        production_dct.pop(key_to_remove)
+        production_dct["r_smH_PTH_GT450"] = key_dct
+
+    return decays_dct, production_dct, edges
+
+
 def main(args):
     if args.debug:
         logger = setup_logging(level="DEBUG")
@@ -421,32 +450,9 @@ def main(args):
     with open(args.submodel_yaml) as f:
         submodel_dict = yaml.load(f)
     submodel_name = args.submodel_yaml.split("/")[-1].split(".")[0]
-    decays_file = f"{args.prediction_dir}/decay.json"
-    with open(decays_file, "r") as f:
-        decays_dct = json.load(f)
-    logger.debug(f"decays_dct: {decays_dct}")
-    production_file = (
-        f"{args.prediction_dir}/differentials/{args.channel}/ggH_SMEFTatNLO_pt_gg.json"
+    decays_dct, production_dct, edges = refactor_predictions(
+        args.prediction_dir, args.channel
     )
-    with open(production_file, "r") as f:
-        tmp_production_dct = json.load(f)
-    dict_keys = list(tmp_production_dct.keys())
-    sorted_keys = sorted(dict_keys, key=lambda x: float(x))
-    tmp_production_dct = {k: tmp_production_dct[k] for k in sorted_keys}
-    edges = [float(k) for k in sorted_keys] + [10000.0]
-    logger.debug(f"edges: {edges}")
-    production_dct = {}
-    for edge, next_edge in zip(edges[:-1], edges[1:]):
-        production_dct[
-            "r_smH_PTH_{}_{}".format(
-                str(edge).replace(".0", ""), str(next_edge).replace(".0", "")
-            )
-        ] = tmp_production_dct[str(edge)]
-    if args.channel == "hgg":
-        key_to_remove = "r_smH_PTH_450_10000"
-        key_dct = production_dct[key_to_remove]
-        production_dct.pop(key_to_remove)
-        production_dct["r_smH_PTH_GT450"] = key_dct
     logger.debug(f"production_dct: {production_dct}")
     logger.debug(f"production_dct keys: {list(production_dct.keys())}")
 
