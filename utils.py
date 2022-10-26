@@ -23,6 +23,10 @@ corr_matrices_expected = {
     "hgg": "input/SMEFT/expected/Hgg/correlation_matrix.json",
     "hzz": "input/SMEFT/expected/HZZ/correlation_matrix.json",
 }
+sm_prediction_files = {
+    "hgg": "predictions/theoryPred_Pt_18_fullPS.pkl",
+    "hzz": "predictions/theoryPred_Pt_18_fullPS_HZZ.pkl",
+}
 
 
 def refactor_predictions(prediction_dir, channel):
@@ -54,14 +58,14 @@ def refactor_predictions(prediction_dir, channel):
         production_dct.pop(key_to_remove)
         production_dct["r_smH_PTH_GT200"] = key_dct
 
-    return decays_dct, production_dct, edges
+    return decays_dct, production_dct, edges, sorted_keys
 
 
 def refactor_predictions_multichannel(prediction_dir, channels):
     production_dct = {}
     edges = {}
     for channel in channels:
-        decays_dct, production_dct[channel], edges[channel] = refactor_predictions(
+        decays_dct, production_dct[channel], edges[channel], _ = refactor_predictions(
             prediction_dir, channel
         )
     return decays_dct, production_dct, edges
