@@ -14,6 +14,16 @@ ggH_production_files = {
 
 max_to_matt = {"hgg": "gamgam", "hzz": "ZZ"}
 
+mus_paths = {"hgg": "input/SMEFT/mus_Hgg.json", "hzz": "input/SMEFT/mus_HZZ.json"}
+corr_matrices_observed = {
+    "hgg": "input/SMEFT/observed/Hgg/correlation_matrix.json",
+    "hzz": "input/SMEFT/observed/HZZ/correlation_matrix.json",
+}
+corr_matrices_expected = {
+    "hgg": "input/SMEFT/expected/Hgg/correlation_matrix.json",
+    "hzz": "input/SMEFT/expected/HZZ/correlation_matrix.json",
+}
+
 
 def refactor_predictions(prediction_dir, channel):
     decays_file = f"{prediction_dir}/decay.json"

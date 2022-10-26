@@ -64,6 +64,19 @@ python plot_shape_matt_predictions.py --input-dir /work/gallim/DifferentialCombi
 
 ## ```chi_square_fitter.py```
 
+One of the main inputs of this part are the measured values of signal strength for each decay channel and the estimated correlation matrices among them. These are provided in a peculiar format which is heritage of [EFT-Fitter](https://github.com/maxgalli/EFT-Fitter/tree/differential_combination_checks). As an example, in order to produce the needed stuff for HZZ:
+```
+cd input/SMEFT
+python get_mus.py --input-dir /work/gallim/DifferentialCombination_home/outputs/SM_scans/smH_PTH --output-dir . --channel HZZ
+python get_corr_mat.py --input-file /work/gallim/DifferentialCombination_home/outputs/SM_scans/smH_PTH/HZZ_asimov-20221026xxx081500/multidimfit_POSTFIT_HZZ.root --output-dir expected/HZZ --channel HZZ
+python get_corr_mat.py --input-file /work/gallim/DifferentialCombination_home/outputs/SM_scans/smH_PTH/HZZ-20221026xxx092202/multidimfit_POSTFIT_HZZ.root --output-dir observed/HZZ --channel HZZ
+```
+
+Example of a call:
+```
+python chi_square_fitter.py --prediction-dir /work/gallim/DifferentialCombination_home/EFTScalingEquations/equations/CMS-prelim-SMEFT-topU3l_22_05_05 --submodel-yaml /work/gallim/DifferentialCombination_home/DifferentialCombinationRun2/metadata/SMEFT/220926Atlas_ChgScen.yml --output-dir /eos/home-g/gallim/www/plots/DifferentialCombination/CombinationRun2/EFTModelsStudies/test/chi_square --channels hgg hzz
+```
+
 ## ```pca.py```
 
 Here we perform a Principal Component Analysis in order to find out along which axes the information is "flat" and discard them. Apart from plotting the rotation matrix and the new SMEFT coefficients for the eigenvectors, the first part attempts to plot a matrix similar to the one shown at page 34 of [this paper](https://arxiv.org/pdf/2105.00006.pdf). 
