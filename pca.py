@@ -320,7 +320,7 @@ def main(args):
 
     model_name = args.model_yaml.split("/")[-1].split(".")[0]
     base_output_dir = (
-        f"{args.prediction_dir}_rotated_{model_name}_{''.join(args.channels)}"
+        f"{args.prediction_dir}_rotated{model_name}{''.join(args.channels)}"
     )
     for channel in args.channels:
         mus = mus_dct[channel]
