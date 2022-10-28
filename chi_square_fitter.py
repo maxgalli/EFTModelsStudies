@@ -12,6 +12,8 @@ import mplhep as hep
 from itertools import combinations, product
 from scipy import interpolate
 from scipy.interpolate import griddata
+import dask
+from dask.distributed import Client, LocalCluster, get_client, wait
 
 hep.style.use("CMS")
 
@@ -49,6 +51,12 @@ def parse_arguments():
 
     parser.add_argument(
         "--skip2D", action="store_true", help="Skip 2D plots of the fit"
+    )
+
+    parser.add_argument(
+        "--multiprocess",
+        action="store_true",
+        help="Use multiprocessing to speed up the fit",
     )
 
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
@@ -283,11 +291,14 @@ class EFTFitter:
 
         return ret
 
-    def scan(self, how, expected=False, points=500, skip2d=False):
+    def scan(self, how, expected=False, points=1000, skip2d=False, multiprocess=False):
         logging.info(f"Scanning {how} with expected={expected}")
         y0 = self.y0 if not expected else self.y0_asimov
         y_err = self.y_err if not expected else self.y_err_asimov
         result = {}
+
+        if multiprocess:
+            client = get_client()
         # 1D scans
         for poi_name, poi_info in self.pois_dict.items():
             logging.info(f"Scanning {poi_name}")
@@ -297,7 +308,8 @@ class EFTFitter:
                 pois_to_float = {
                     pn: pv for pn, pv in self.pois_dict.items() if pn != poi_name
                 }
-            for i, poi_value in enumerate(poi_values):
+
+            def get_chi_to_parallelize(how, i, poi_value):
                 if how == "fixed":
                     dcts = [{"name": poi_name, "value": poi_value}]
                 elif how == "profiled":
@@ -314,7 +326,19 @@ class EFTFitter:
                     quadratic_only=self.quadratic,
                 )
                 chi = chi_square(y0, y, y_err)
-                chi_s.append(chi)
+
+                return chi
+
+            for i, poi_value in enumerate(poi_values):
+                if multiprocess:
+                    chi_s.append(
+                        client.submit(get_chi_to_parallelize, how, i, poi_value)
+                    )
+                else:
+                    chi_s.append(get_chi_to_parallelize(how, i, poi_value))
+            if multiprocess:
+                chi_s = client.gather(chi_s)
+
             chi_s = np.array(chi_s)
             chi_s -= chi_s.min()
             result[poi_name] = {"values": poi_values, "chi_square": chi_s}
@@ -352,7 +376,8 @@ class EFTFitter:
                             for pn, pv in self.pois_dict.items()
                             if pn not in [poi1, poi2]
                         }
-                    for poi_values_pair in poi_values_pairs:
+
+                    def get_chi_to_parallelize_2D(how, poi_values_pair):
                         if how == "fixed":
                             dcts = [
                                 {"name": poi1, "value": poi_values_pair[0]},
@@ -377,7 +402,21 @@ class EFTFitter:
                             quadratic_only=self.quadratic,
                         )
                         chi = chi_square(y0, y, y_err)
-                        chi_s.append(chi)
+                        return chi
+
+                    for poi_values_pair in poi_values_pairs:
+                        if multiprocess:
+                            chi_s.append(
+                                client.submit(
+                                    get_chi_to_parallelize_2D, how, poi_values_pair
+                                )
+                            )
+                        else:
+                            chi_s.append(
+                                get_chi_to_parallelize_2D(how, poi_values_pair)
+                            )
+                    if multiprocess:
+                        chi_s = client.gather(chi_s)
                     chi_s = np.array(chi_s)
                     chi_s -= chi_s.min()
                     result[f"{poi1}_{poi2}"] = {
@@ -407,6 +446,12 @@ def main(args):
     else:
         logger = setup_logging(level="INFO")
     os.makedirs(args.output_dir, exist_ok=True)
+
+    if args.multiprocess:
+        logger.info("Using multiprocessing")
+        cluster = LocalCluster()
+        client = Client(cluster)
+        cluster.scale(72)
 
     mus_dct_of_dcts = {}
     for channel in args.channels:
@@ -485,7 +530,10 @@ def main(args):
         how="fixed", expected=True, skip2d=args.skip2D
     )
     results["expected_profiled"] = fitter.scan(
-        how="profiled", expected=True, skip2d=args.skip2D
+        how="profiled",
+        expected=True,
+        skip2d=args.skip2D,
+        multiprocess=args.multiprocess,
     )
     # results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
     # results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
