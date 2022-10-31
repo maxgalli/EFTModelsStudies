@@ -7,7 +7,10 @@ from numpy.linalg import inv
 from scipy.optimize import minimize as scipy_minimize
 from scipy.sparse import block_diag
 import logging
+import matplotlib
 import matplotlib.pyplot as plt
+
+matplotlib.use("AGG")
 import mplhep as hep
 from itertools import combinations, product
 from scipy import interpolate

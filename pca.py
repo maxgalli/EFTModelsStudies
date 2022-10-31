@@ -111,7 +111,7 @@ def plot_rotation_matrix(
         ax.text(
             rot.shape[1] - 0.45,
             i,
-            f"$\lambda_{i}$ = {ev:.3f}",
+            f"$\lambda{i}$ = {ev:.3f}",
             va="center",
             ha="left",
             fontsize=12,
@@ -121,6 +121,7 @@ def plot_rotation_matrix(
     fig.tight_layout()
 
     # save
+    logging.info(f"Saving PCA plot to {output_dir}")
     fig.savefig(f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}.png")
     fig.savefig(f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}.pdf")
 
@@ -161,6 +162,7 @@ def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
     fig.tight_layout()
 
     # save
+    logging.info(f"Saving fisher information plot to {output_dir}")
     fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}.png")
     fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}.pdf")
 
