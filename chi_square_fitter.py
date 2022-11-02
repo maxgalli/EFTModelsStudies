@@ -296,7 +296,7 @@ class EFTFitter:
 
         return ret
 
-    def scan(self, how, expected=False, points=100, skip2d=False, multiprocess=False):
+    def scan(self, how, expected=False, points=500, multiprocess=False):
         logging.info(f"Scanning {how} with expected={expected}")
         y0 = self.y0 if not expected else self.y0_asimov
         y_err = self.y_err if not expected else self.y_err_asimov
@@ -341,94 +341,91 @@ class EFTFitter:
                     )
                 else:
                     chi_s.append(get_chi_to_parallelize(how, i, poi_value))
-            if multiprocess:
-                chi_s = client.gather(chi_s)
 
-            chi_s = np.array(chi_s)
-            chi_s -= chi_s.min()
             result[poi_name] = {"values": poi_values, "chi_square": chi_s}
 
-        # 2D scans
-        if not skip2d:
-            if how == "profiled" and len(self.pois_dict) < 3:
-                logging.info("Skipping 2D scan")
-                return result
+        return result
 
-            if len(self.pois_dict) > 1:
-                pois_combinations = list(combinations(self.pois_dict.keys(), 2))
-                points = int(points / 2)
-                for poi1, poi2 in pois_combinations:
-                    logging.info(f"Scanning {poi1} vs {poi2}")
-                    # poi values will now be a pair
-                    poi_values_pairs = (
-                        np.mgrid[
-                            self.pois_dict[poi1]["min"] : self.pois_dict[poi1][
-                                "max"
-                            ] : points
-                            * 1j,
-                            self.pois_dict[poi2]["min"] : self.pois_dict[poi2][
-                                "max"
-                            ] : points
-                            * 1j,
-                        ]
-                        .reshape(2, -1)
-                        .T
-                    )
-                    chi_s = []
-                    if how == "profiled":
-                        pois_to_float = {
-                            pn: pv
-                            for pn, pv in self.pois_dict.items()
-                            if pn not in [poi1, poi2]
-                        }
+    def scan2D(self, how, expected=False, points=40, multiprocess=False):
+        logging.info(f"Scanning {how} with expected={expected}")
+        y0 = self.y0 if not expected else self.y0_asimov
+        y_err = self.y_err if not expected else self.y_err_asimov
+        result = {}
 
-                    def get_chi_to_parallelize_2D(how, poi_values_pair):
-                        if how == "fixed":
-                            dcts = [
-                                {"name": poi1, "value": poi_values_pair[0]},
-                                {"name": poi2, "value": poi_values_pair[1]},
-                            ]
-                        elif how == "profiled":
-                            pois_to_freeze = {
-                                poi1: {"val": poi_values_pair[0]},
-                                poi2: {"val": poi_values_pair[1]},
-                            }
-                            dcts = self.minimize(
-                                pois_to_float, pois_to_freeze, y0, y_err
-                            )
-                            dcts.append({"name": poi1, "value": poi_values_pair[0]})
-                            dcts.append({"name": poi2, "value": poi_values_pair[1]})
-                        y = get_mu_prediction(
-                            dcts,
-                            self.mus,
-                            self.production_coeffs_dict,
-                            self.decay_coeffs_dict,
-                            linear_only=self.linear,
-                            quadratic_only=self.quadratic,
-                        )
-                        chi = chi_square(y0, y, y_err)
-                        return chi
+        if multiprocess:
+            client = get_client()
 
-                    for poi_values_pair in poi_values_pairs:
-                        if multiprocess:
-                            chi_s.append(
-                                client.submit(
-                                    get_chi_to_parallelize_2D, how, poi_values_pair
-                                )
-                            )
-                        else:
-                            chi_s.append(
-                                get_chi_to_parallelize_2D(how, poi_values_pair)
-                            )
-                    if multiprocess:
-                        chi_s = client.gather(chi_s)
-                    chi_s = np.array(chi_s)
-                    chi_s -= chi_s.min()
-                    result[f"{poi1}_{poi2}"] = {
-                        "values1": poi_values_pairs[:, 0],
-                        "values2": poi_values_pairs[:, 1],
-                        "chi_square": chi_s,
+        if how == "profiled" and len(self.pois_dict) < 3:
+            logging.info("Skipping 2D scan")
+            return result
+
+        if len(self.pois_dict) > 1:
+            pois_combinations = list(combinations(self.pois_dict.keys(), 2))
+            for poi1, poi2 in pois_combinations:
+                logging.info(f"Scanning {poi1} vs {poi2}")
+                # poi values will now be a pair
+                poi_values_pairs = (
+                    np.mgrid[
+                        self.pois_dict[poi1]["min"] : self.pois_dict[poi1][
+                            "max"
+                        ] : points
+                        * 1j,
+                        self.pois_dict[poi2]["min"] : self.pois_dict[poi2][
+                            "max"
+                        ] : points
+                        * 1j,
+                    ]
+                    .reshape(2, -1)
+                    .T
+                )
+                chi_s = []
+                if how == "profiled":
+                    pois_to_float = {
+                        pn: pv
+                        for pn, pv in self.pois_dict.items()
+                        if pn not in [poi1, poi2]
                     }
+
+                def get_chi_to_parallelize_2D(how, poi_values_pair):
+                    if how == "fixed":
+                        dcts = [
+                            {"name": poi1, "value": poi_values_pair[0]},
+                            {"name": poi2, "value": poi_values_pair[1]},
+                        ]
+                    elif how == "profiled":
+                        pois_to_freeze = {
+                            poi1: {"val": poi_values_pair[0]},
+                            poi2: {"val": poi_values_pair[1]},
+                        }
+                        dcts = self.minimize(pois_to_float, pois_to_freeze, y0, y_err)
+                        dcts.append({"name": poi1, "value": poi_values_pair[0]})
+                        dcts.append({"name": poi2, "value": poi_values_pair[1]})
+                    y = get_mu_prediction(
+                        dcts,
+                        self.mus,
+                        self.production_coeffs_dict,
+                        self.decay_coeffs_dict,
+                        linear_only=self.linear,
+                        quadratic_only=self.quadratic,
+                    )
+                    chi = chi_square(y0, y, y_err)
+                    return chi
+
+                for poi_values_pair in poi_values_pairs:
+                    if multiprocess:
+                        chi_s.append(
+                            client.submit(
+                                get_chi_to_parallelize_2D, how, poi_values_pair
+                            )
+                        )
+                    else:
+                        chi_s.append(get_chi_to_parallelize_2D(how, poi_values_pair))
+
+                result[f"{poi1}_{poi2}"] = {
+                    "values1": poi_values_pairs[:, 0],
+                    "values2": poi_values_pairs[:, 1],
+                    "chi_square": chi_s,
+                }
 
         return result
 
@@ -464,10 +461,10 @@ def main(args):
             memory="6G",
             log_directory="slurm_logs",
             local_directory="slurm_logs",
-            # job_script_prologue=["#SBATCH --partition=short"],
         )
         cluster.adapt(minimum=10, maximum=50)
         client = Client(cluster)
+        cluster.scale(72)
         logger.info(cluster.job_script())
         logger.info("Waiting for workers to be ready")
         client.wait_for_workers(10)
@@ -545,18 +542,35 @@ def main(args):
     fitter.print_scaling_equations()
 
     results = {}
-    results["expected_fixed"] = fitter.scan(
-        how="fixed", expected=True, skip2d=args.skip2D
-    )
+    results["expected_fixed"] = fitter.scan(how="fixed", expected=True)
+    if not args.skip2D:
+        results["expected_fixed"] = {
+            **results["expected_fixed"],
+            **fitter.scan2D(how="fixed", expected=True),
+        }
     results["expected_profiled"] = fitter.scan(
-        how="profiled",
-        expected=True,
-        skip2d=args.skip2D,
-        multiprocess=args.multiprocess,
+        how="profiled", expected=True, multiprocess=args.multiprocess
     )
+    if not args.skip2D:
+        results["expected_profiled"] = {
+            **results["expected_profiled"],
+            **fitter.scan2D(
+                how="profiled", expected=True, multiprocess=args.multiprocess
+            ),
+        }
     # results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
     # results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
+    if args.multiprocess:
+        results = client.gather(results)
+    for k, v in results.items():
+        for kk, vv in v.items():
+            vv["chi_square"] = np.array(vv["chi_square"])
+            vv["chi_square"] -= np.min(vv["chi_square"])
     logger.debug(f"results: {results}")
+
+    if args.multiprocess:
+        client.close()
+        cluster.close()
 
     # plot
     oned_styles = {
@@ -635,6 +649,7 @@ def main(args):
         fig.savefig(
             f"{args.output_dir}/{poi}_{''.join(args.channels)}_{args.suffix}.pdf"
         )
+        plt.close(fig)
     if not args.skip2D:
         pois_pairs = list(combinations(pois, 2))
         for poi1, poi2 in pois_pairs:
@@ -665,8 +680,7 @@ def main(args):
                         x,
                         y,
                         z,
-                        levels=[0.0, 2.295748928898636, 6.180074306244173],
-                        # levels=[0.5, 2.0],
+                        levels=[2.295748928898636, 6.180074306244173],
                         linewidths=2,
                         linestyles=["solid", "dashed"],
                         colors=[
@@ -694,6 +708,7 @@ def main(args):
             fig.savefig(
                 f"{args.output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{args.suffix}.pdf"
             )
+            plt.close(fig)
 
 
 if __name__ == "__main__":

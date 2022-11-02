@@ -1,2 +1,4 @@
 *.out
 *__pycache__
+dask-worker-space
+slurm_logs
