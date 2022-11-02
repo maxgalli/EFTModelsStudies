@@ -1,4 +1,5 @@
 import argparse
+from cmath import log
 import os
 import json
 import yaml
@@ -17,6 +18,7 @@ from scipy import interpolate
 from scipy.interpolate import griddata
 import dask
 from dask.distributed import Client, LocalCluster, get_client, wait
+from dask_jobqueue import SLURMCluster
 
 hep.style.use("CMS")
 
@@ -294,7 +296,7 @@ class EFTFitter:
 
         return ret
 
-    def scan(self, how, expected=False, points=1000, skip2d=False, multiprocess=False):
+    def scan(self, how, expected=False, points=100, skip2d=False, multiprocess=False):
         logging.info(f"Scanning {how} with expected={expected}")
         y0 = self.y0 if not expected else self.y0_asimov
         y_err = self.y_err if not expected else self.y_err_asimov
@@ -354,7 +356,7 @@ class EFTFitter:
 
             if len(self.pois_dict) > 1:
                 pois_combinations = list(combinations(self.pois_dict.keys(), 2))
-                points = int(np.sqrt(points))
+                points = int(points / 2)
                 for poi1, poi2 in pois_combinations:
                     logging.info(f"Scanning {poi1} vs {poi2}")
                     # poi values will now be a pair
@@ -452,9 +454,23 @@ def main(args):
 
     if args.multiprocess:
         logger.info("Using multiprocessing")
-        cluster = LocalCluster()
+        # cluster = LocalCluster()
+        # client = Client(cluster)
+        # cluster.scale(36)
+        cluster = SLURMCluster(
+            queue="short",
+            cores=1,
+            processes=1,
+            memory="6G",
+            log_directory="slurm_logs",
+            local_directory="slurm_logs",
+            # job_script_prologue=["#SBATCH --partition=short"],
+        )
+        cluster.adapt(minimum=10, maximum=50)
         client = Client(cluster)
-        cluster.scale(72)
+        logger.info(cluster.job_script())
+        logger.info("Waiting for workers to be ready")
+        client.wait_for_workers(10)
 
     mus_dct_of_dcts = {}
     for channel in args.channels:
@@ -649,7 +665,7 @@ def main(args):
                         x,
                         y,
                         z,
-                        levels=[1.0, 4.0],
+                        levels=[0.0, 2.295748928898636, 6.180074306244173],
                         # levels=[0.5, 2.0],
                         linewidths=2,
                         linestyles=["solid", "dashed"],
