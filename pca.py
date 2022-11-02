@@ -75,6 +75,10 @@ def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel):
 def plot_rotation_matrix(
     rot, eigenvalues, wilson_coeffs, channels, output_dir, full=False
 ):
+    # First take only real parts of the rotation matrix and eigenvalues
+    rot = np.real(rot)
+    eigenvalues = np.real(eigenvalues)
+
     fig, ax = plt.subplots()
     cmap = plt.get_cmap("bwr")
     # plot only for eigenvalus > 0.001

@@ -47,6 +47,17 @@ all_pois = {
         "r_smH_PTH_120_200",
         "r_smH_PTH_GT200",
     ],
+    "Htt": [
+        "r_smH_PTH_0_45",
+        "r_smH_PTH_45_80",
+        "r_smH_PTH_80_120",
+        "r_smH_PTH_120_140",
+        "r_smH_PTH_140_170",
+        "r_smH_PTH_170_200",
+        "r_smH_PTH_200_350",
+        "r_smH_PTH_350_450",
+        "r_smH_PTH_GT450",
+    ],
 }
 
 
@@ -82,6 +93,8 @@ def main(args):
 
     observable = "smH_PTH"
 
+    are_singles = ["Htt"]
+
     values = {}
     categories = [args.channel, f"{args.channel}_asimov"]
     pois = all_pois[args.channel]
@@ -98,14 +111,30 @@ def main(args):
         ]
 
         diff_spectrum = DifferentialSpectrum(
-            observable, category, pois, category_input_dirs, from_singles=False
+            observable,
+            category,
+            pois,
+            category_input_dirs,
+            from_singles=True if args.channel in are_singles else False,
         )
 
         for poi in pois:
             values[category][poi] = {}
-            values[category][poi]["bestfit"] = diff_spectrum.scans[poi].minimum[0]
-            values[category][poi]["Up01Sigma"] = diff_spectrum.scans[poi].up68_unc
-            values[category][poi]["Down01Sigma"] = diff_spectrum.scans[poi].down68_unc
+            values[category][poi]["bestfit"] = (
+                diff_spectrum.scans[poi].mu
+                if args.channel in are_singles
+                else diff_spectrum.scans[poi].minimum[0]
+            )
+            values[category][poi]["Up01Sigma"] = (
+                diff_spectrum.scans[poi].mu_up - diff_spectrum.scans[poi].mu
+                if args.channel in are_singles
+                else diff_spectrum.scans[poi].up68_unc
+            )
+            values[category][poi]["Down01Sigma"] = (
+                abs(diff_spectrum.scans[poi].mu_down - diff_spectrum.scans[poi].mu)
+                if args.channel in are_singles
+                else diff_spectrum.scans[poi].down68_unc
+            )
 
         logger.info(f"Values for {category}: {values[category]}")
 
@@ -116,12 +145,12 @@ def main(args):
         final_dct[key]["Up01Sigma"] = (
             values[args.channel][key]["Up01Sigma"]
             if values[args.channel][key]["Up01Sigma"] > 0
-            else 1.
+            else 1.0
         )
         final_dct[key]["Down01Sigma"] = (
             values[args.channel][key]["Down01Sigma"]
             if values[args.channel][key]["Down01Sigma"] > 0
-            else 1.
+            else 1.0
         )
         final_dct[key]["Up01SigmaExp"] = values[f"{args.channel}_asimov"][key][
             "Up01Sigma"

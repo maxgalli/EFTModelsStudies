@@ -5,27 +5,36 @@ import json
 robusthesse_paths = {
     "hgg": "input/SMEFT/expected/Hgg/robustHesseAsimovBestFit.root",
     "hzz": "input/SMEFT/expected/HZZ/robustHesse_POSTFIT_HZZ.root",
+    "htt": "input/SMEFT/expected/Htt/robustHesseTest.root",
 }
 
 ggH_production_files = {
     "hgg": "{}/differentials/hgg/ggH_SMEFTatNLO_pt_gg.json",
     "hzz": "{}/differentials/hzz/ggH_SMEFTatNLO_pt_h.json",
+    "htt": "{}/differentials/htt/ggH_SMEFTatNLO_pt_h.json",
 }
 
-max_to_matt = {"hgg": "gamgam", "hzz": "ZZ"}
+max_to_matt = {"hgg": "gamgam", "hzz": "ZZ", "htt": "tautau"}
 
-mus_paths = {"hgg": "input/SMEFT/mus_Hgg.json", "hzz": "input/SMEFT/mus_HZZ.json"}
+mus_paths = {
+    "hgg": "input/SMEFT/mus_Hgg.json",
+    "hzz": "input/SMEFT/mus_HZZ.json",
+    "htt": "input/SMEFT/mus_Htt.json",
+}
 corr_matrices_observed = {
     "hgg": "input/SMEFT/observed/Hgg/correlation_matrix.json",
     "hzz": "input/SMEFT/observed/HZZ/correlation_matrix.json",
+    "htt": "input/SMEFT/observed/Htt/correlation_matrix.json",
 }
 corr_matrices_expected = {
     "hgg": "input/SMEFT/expected/Hgg/correlation_matrix.json",
     "hzz": "input/SMEFT/expected/HZZ/correlation_matrix.json",
+    "htt": "input/SMEFT/expected/Htt/correlation_matrix.json",
 }
 sm_prediction_files = {
     "hgg": "predictions/theoryPred_Pt_18_fullPS.pkl",
     "hzz": "predictions/theoryPred_Pt_18_fullPS_HZZ.pkl",
+    "htt": "predictions/theoryPred_Pt_18_fullPS_Htt.pkl",
 }
 
 
@@ -47,7 +56,7 @@ def refactor_predictions(prediction_dir, channel):
                 str(edge).replace(".0", ""), str(next_edge).replace(".0", "")
             )
         ] = tmp_production_dct[str(edge)]
-    if channel == "hgg":
+    if channel in ["hgg", "htt"]:
         key_to_remove = "r_smH_PTH_450_10000"
         key_dct = production_dct[key_to_remove]
         production_dct.pop(key_to_remove)
