@@ -95,7 +95,7 @@ def plot_rotation_matrix(
 
     for i in range(rot.shape[0]):
         for j in range(rot.shape[1]):
-            ax.text(j, i, f"{rot[i, j]:.2f}", va="center", ha="center", fontsize=12)
+            ax.text(j, i, f"{rot[i, j]:.2f}", va="center", ha="center", fontsize=10)
 
     try:
         xlabels = [SMEFT_parameters_labels[c] for c in wilson_coeffs]
@@ -148,7 +148,7 @@ def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
     cax = ax.matshow(matrix, cmap=cmap, vmin=0, vmax=100)
     for i in range(matrix.shape[0]):
         for j in range(matrix.shape[1]):
-            ax.text(j, i, f"{matrix[i, j]:.2f}", va="center", ha="center", fontsize=12)
+            ax.text(j, i, f"{matrix[i, j]:.2f}", va="center", ha="center", fontsize=10)
 
     try:
         ylabels = [SMEFT_parameters_labels[c] for c in wilson_coeffs]

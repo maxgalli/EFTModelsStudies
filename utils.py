@@ -6,35 +6,41 @@ robusthesse_paths = {
     "hgg": "input/SMEFT/expected/Hgg/robustHesseAsimovBestFit.root",
     "hzz": "input/SMEFT/expected/HZZ/robustHesse_POSTFIT_HZZ.root",
     "htt": "input/SMEFT/expected/Htt/robustHesseTest.root",
+    "hww": "input/SMEFT/expected/HWW/robustHesse_POSTFIT_HWW.root",
 }
 
 ggH_production_files = {
     "hgg": "{}/differentials/hgg/ggH_SMEFTatNLO_pt_gg.json",
     "hzz": "{}/differentials/hzz/ggH_SMEFTatNLO_pt_h.json",
     "htt": "{}/differentials/htt/ggH_SMEFTatNLO_pt_h.json",
+    "hww": "{}/differentials/hww/ggH_SMEFTatNLO_pt_h.json",
 }
 
-max_to_matt = {"hgg": "gamgam", "hzz": "ZZ", "htt": "tautau"}
+max_to_matt = {"hgg": "gamgam", "hzz": "ZZ", "htt": "tautau", "hww": "WW"}
 
 mus_paths = {
     "hgg": "input/SMEFT/mus_Hgg.json",
     "hzz": "input/SMEFT/mus_HZZ.json",
     "htt": "input/SMEFT/mus_Htt.json",
+    "hww": "input/SMEFT/mus_HWW.json",
 }
 corr_matrices_observed = {
     "hgg": "input/SMEFT/observed/Hgg/correlation_matrix.json",
     "hzz": "input/SMEFT/observed/HZZ/correlation_matrix.json",
     "htt": "input/SMEFT/observed/Htt/correlation_matrix.json",
+    "hww": "input/SMEFT/observed/HWW/correlation_matrix.json",
 }
 corr_matrices_expected = {
     "hgg": "input/SMEFT/expected/Hgg/correlation_matrix.json",
     "hzz": "input/SMEFT/expected/HZZ/correlation_matrix.json",
     "htt": "input/SMEFT/expected/Htt/correlation_matrix.json",
+    "hww": "input/SMEFT/expected/HWW/correlation_matrix.json",
 }
 sm_prediction_files = {
     "hgg": "predictions/theoryPred_Pt_18_fullPS.pkl",
     "hzz": "predictions/theoryPred_Pt_18_fullPS_HZZ.pkl",
     "htt": "predictions/theoryPred_Pt_18_fullPS_Htt.pkl",
+    "hww": "predictions/theoryPred_Pt_18_fullPS_HWW.pkl",
 }
 
 
@@ -61,7 +67,7 @@ def refactor_predictions(prediction_dir, channel):
         key_dct = production_dct[key_to_remove]
         production_dct.pop(key_to_remove)
         production_dct["r_smH_PTH_GT450"] = key_dct
-    elif channel == "hzz":
+    elif channel in ["hzz", "hww"]:
         key_to_remove = "r_smH_PTH_200_10000"
         key_dct = production_dct[key_to_remove]
         production_dct.pop(key_to_remove)

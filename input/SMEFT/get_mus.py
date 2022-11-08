@@ -47,6 +47,14 @@ all_pois = {
         "r_smH_PTH_120_200",
         "r_smH_PTH_GT200",
     ],
+    "HWW": [
+        "r_smH_PTH_0_30",
+        "r_smH_PTH_30_45",
+        "r_smH_PTH_45_80",
+        "r_smH_PTH_80_120",
+        "r_smH_PTH_120_200",
+        "r_smH_PTH_GT200",
+    ],
     "Htt": [
         "r_smH_PTH_0_45",
         "r_smH_PTH_45_80",

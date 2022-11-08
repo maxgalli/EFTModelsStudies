@@ -7,6 +7,7 @@ import numpy as np
 from numpy.linalg import inv
 from scipy.optimize import minimize as scipy_minimize
 from scipy.sparse import block_diag
+from scipy.optimize import curve_fit
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
@@ -62,6 +63,11 @@ def parse_arguments():
         "--multiprocess",
         action="store_true",
         help="Use multiprocessing to speed up the fit",
+    )
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        help="Use dask jobqueue to speed up the fit",
     )
 
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
@@ -296,7 +302,7 @@ class EFTFitter:
 
         return ret
 
-    def scan(self, how, expected=False, points=500, multiprocess=False):
+    def scan(self, how, expected=False, points=100, multiprocess=False):
         logging.info(f"Scanning {how} with expected={expected}")
         y0 = self.y0 if not expected else self.y0_asimov
         y_err = self.y_err if not expected else self.y_err_asimov
@@ -346,7 +352,7 @@ class EFTFitter:
 
         return result
 
-    def scan2D(self, how, expected=False, points=40, multiprocess=False):
+    def scan2D(self, how, expected=False, points=55, multiprocess=False):
         logging.info(f"Scanning {how} with expected={expected}")
         y0 = self.y0 if not expected else self.y0_asimov
         y_err = self.y_err if not expected else self.y_err_asimov
@@ -449,13 +455,22 @@ def main(args):
         logger = setup_logging(level="INFO")
     os.makedirs(args.output_dir, exist_ok=True)
 
+    multiple_workers = False
     if args.multiprocess:
+        multiple_workers = True
         logger.info("Using multiprocessing")
-        # cluster = LocalCluster()
-        # client = Client(cluster)
-        # cluster.scale(36)
+        cluster = LocalCluster()
+        client = Client(cluster)
+        cluster.scale(18)
+        logger.info("Waiting for workers to be ready")
+        client.wait_for_workers(10)
+    elif args.distributed:
+        multiple_workers = True
+        logger.info("Using distributed")
         cluster = SLURMCluster(
-            queue="short",
+            # queue="short",
+            queue="standard",
+            walltime="10:00:00",
             cores=1,
             processes=1,
             memory="6G",
@@ -464,7 +479,6 @@ def main(args):
         )
         cluster.adapt(minimum=10, maximum=50)
         client = Client(cluster)
-        cluster.scale(72)
         logger.info(cluster.job_script())
         logger.info("Waiting for workers to be ready")
         client.wait_for_workers(10)
@@ -549,18 +563,18 @@ def main(args):
             **fitter.scan2D(how="fixed", expected=True),
         }
     results["expected_profiled"] = fitter.scan(
-        how="profiled", expected=True, multiprocess=args.multiprocess
+        how="profiled", expected=True, points=150, multiprocess=multiple_workers
     )
     if not args.skip2D:
         results["expected_profiled"] = {
             **results["expected_profiled"],
             **fitter.scan2D(
-                how="profiled", expected=True, multiprocess=args.multiprocess
+                how="profiled", expected=True, multiprocess=multiple_workers
             ),
         }
     # results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
     # results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
-    if args.multiprocess:
+    if multiple_workers:
         results = client.gather(results)
     for k, v in results.items():
         for kk, vv in v.items():
@@ -568,7 +582,7 @@ def main(args):
             vv["chi_square"] -= np.min(vv["chi_square"])
     logger.debug(f"results: {results}")
 
-    if args.multiprocess:
+    if multiple_workers:
         client.close()
         cluster.close()
 
@@ -586,24 +600,28 @@ def main(args):
                 "marker": "o",
                 "fillstyle": "none",
                 "markersize": 5,
+                # "linestyle": "none",
             },
             "expected_profiled": {
                 "color": "green",
                 "marker": "o",
                 "fillstyle": "full",
                 "markersize": 5,
+                "linestyle": "none",
             },
             "observed_fixed": {
                 "color": "red",
                 "marker": "o",
                 "fillstyle": "none",
                 "markersize": 5,
+                # "linestyle": "none",
             },
             "observed_profiled": {
                 "color": "orange",
                 "marker": "o",
                 "fillstyle": "full",
                 "markersize": 5,
+                "linestyle": "none",
             },
         },
     }
@@ -618,14 +636,9 @@ def main(args):
         fig, ax = plt.subplots()
         for result_name, result in results.items():
             logger.info(f"Plotting for poi: {poi}, result_name: {result_name}")
-            func = interpolate.interp1d(
-                result[poi]["values"], result[poi]["chi_square"], kind="cubic"
-            )
             x = np.linspace(
                 result[poi]["values"].min(), result[poi]["values"].max(), 1000
             )
-            y = func(x)
-            ax.plot(x, y, linewidth=1, **oned_styles["line"][result_name])
             # plot dots
             ax.plot(
                 result[poi]["values"],
