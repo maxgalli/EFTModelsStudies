@@ -11,7 +11,12 @@ import mplhep as hep
 import itertools
 from itertools import combinations
 
-from utils import refactor_predictions, sm_prediction_files, max_to_matt
+from utils import (
+    refactor_predictions,
+    refactor_predictions_multichannel,
+    sm_prediction_files,
+    max_to_matt,
+)
 
 
 def parse_arguments():
@@ -19,9 +24,11 @@ def parse_arguments():
     parser.add_argument("--prediction-dir", type=str, required=True)
     parser.add_argument("--output-dir", type=str, default="outputs")
     parser.add_argument("--config-file", type=str, default="config.yaml")
-    parser.add_argument("--channel", type=str, required=True)
     parser.add_argument(
-        "--study", type=str, required=True, choices=["1D", "2D", "matrix"]
+        "--channels", nargs="+", type=str, required=True, default=[], help=""
+    )
+    parser.add_argument(
+        "--skip-spectra", action="store_true", help="Skip plotting spectra"
     )
 
     return parser.parse_args()
@@ -70,37 +77,6 @@ def mu(pois, coeff_prod, coeff_decay, coeff_tot):
     return prod * (decay / tot)
 
 
-def mu2d(pois1, pois2, coeff_prod, coeff_decay, coeff_tot):
-    """
-    """
-    prod = (
-        1
-        + pois1 * coeff_prod[0]
-        + pois1 ** 2 * coeff_prod[1]
-        + pois2 * coeff_prod[2]
-        + pois2 ** 2 * coeff_prod[3]
-        + pois1 * pois2 * coeff_prod[4]
-    )
-    decay = (
-        1
-        + pois1 * coeff_decay[0]
-        + pois1 ** 2 * coeff_decay[1]
-        + pois2 * coeff_decay[2]
-        + pois2 ** 2 * coeff_decay[3]
-        + pois1 * pois2 * coeff_decay[4]
-    )
-    tot = (
-        1
-        + pois1 * coeff_tot[0]
-        + pois1 ** 2 * coeff_tot[1]
-        + pois2 * coeff_tot[2]
-        + pois2 ** 2 * coeff_tot[3]
-        + pois1 * pois2 * coeff_tot[4]
-    )
-
-    return prod * (decay / tot)
-
-
 def get_coeffs(poi, production_dct, decays_dct, channel):
     dec = max_to_matt[channel]
     tot = "tot"
@@ -125,331 +101,136 @@ def get_coeffs(poi, production_dct, decays_dct, channel):
     return production_coeffs, decay_coeffs, tot_coeffs
 
 
-def get_coeffs_2d(poi1, poi2, production_dct, decays_dct, channel):
-    dec = max_to_matt[channel]
-    tot = "tot"
-
-    decay_coeffs = [
-        decays_dct[dec][f"A_{poi1}"] if f"A_{poi1}" in decays_dct[dec] else 0.0,
-        decays_dct[dec][f"B_{poi1}_2"] if f"B_{poi1}_2" in decays_dct[dec] else 0.0,
-        decays_dct[dec][f"A_{poi2}"] if f"A_{poi2}" in decays_dct[dec] else 0.0,
-        decays_dct[dec][f"B_{poi2}_2"] if f"B_{poi2}_2" in decays_dct[dec] else 0.0,
-        decays_dct[dec][f"B_{poi1}_{poi2}"]
-        if f"B_{poi1}_{poi2}" in decays_dct[dec]
-        else decays_dct[dec][f"B_{poi2}_{poi1}"]
-        if f"B_{poi2}_{poi1}" in decays_dct[dec]
-        else 0.0,
-    ]
-    tot_coeffs = [
-        decays_dct[tot][f"A_{poi1}"] if f"A_{poi1}" in decays_dct[tot] else 0.0,
-        decays_dct[tot][f"B_{poi1}_2"] if f"B_{poi1}_2" in decays_dct[tot] else 0.0,
-        decays_dct[tot][f"A_{poi2}"] if f"A_{poi2}" in decays_dct[tot] else 0.0,
-        decays_dct[tot][f"B_{poi2}_2"] if f"B_{poi2}_2" in decays_dct[tot] else 0.0,
-        decays_dct[tot][f"B_{poi1}_{poi2}"]
-        if f"B_{poi1}_{poi2}" in decays_dct[tot]
-        else decays_dct[tot][f"B_{poi2}_{poi1}"]
-        if f"B_{poi2}_{poi1}" in decays_dct[tot]
-        else 0.0,
-    ]
-    production_coeffs = {}
-    for k in production_dct:
-        prod_coeff = [
-            production_dct[k][f"A_{poi1}"] if f"A_{poi1}" in production_dct[k] else 0.0,
-            production_dct[k][f"B_{poi1}_2"]
-            if f"B_{poi1}_2" in production_dct[k]
-            else 0.0,
-            production_dct[k][f"A_{poi2}"] if f"A_{poi2}" in production_dct[k] else 0.0,
-            production_dct[k][f"B_{poi2}_2"]
-            if f"B_{poi2}_2" in production_dct[k]
-            else 0.0,
-            production_dct[k][f"B_{poi1}_{poi2}"]
-            if f"B_{poi1}_{poi2}" in production_dct[k]
-            else production_dct[k][f"B_{poi2}_{poi1}"]
-            if f"B_{poi2}_{poi1}" in production_dct[k]
-            else 0.0,
-        ]
-        production_coeffs[k] = prod_coeff
-
-    return production_coeffs, decay_coeffs, tot_coeffs
-
-
-def plot_spectrum():
-    pass
-
-
 def main(args):
     pois_file = args.config_file
     pois_dct = yaml.safe_load(open(pois_file))
     pois = list(pois_dct.keys())
 
-    decays_dct, production_dct, edges, sorted_keys = refactor_predictions(
-        args.prediction_dir, args.channel
+    decays_dct, production_dct, edges = refactor_predictions_multichannel(
+        args.prediction_dir, args.channels
     )
 
-    bin_names = []
-    for l, r in zip(sorted_keys[:-1], sorted_keys[1:]):
-        ln = l.replace(".", "p")
-        rn = r.replace(".", "p")
-        bin_names.append(f"{ln}_{rn}")
-    bin_names.append("GT{}".format(sorted_keys[-1].replace(".", "p")))
+    bin_names = {}
+    for k, v in production_dct.items():
+        bin_names[k] = [s.replace("r_smH_PTH_", "") for s in list(v.keys())]
 
-    if args.study == "1D":
-        hep.style.use("CMS")
-        # plot one figure per POI with the parabolas for each bin
-        print("Plotting parabolas...")
-        for poi in pois:
-            poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 101)
+    hep.style.use("CMS")
+    # plot one figure per POI with the parabolas for each bin
+    print("Plotting parabolas...")
+    channel_linestyles = {"hgg": "-", "hzz": "--", "hww": "-.", "htt": ":"}
+    # shades of different colors for each channel
+    channel_colors = {
+        "hgg": [
+            plt.get_cmap("Reds")(i) for i in np.linspace(0.1, 1, len(bin_names["hgg"]))
+        ],
+        "hzz": [
+            plt.get_cmap("Blues")(i) for i in np.linspace(0.1, 1, len(bin_names["hzz"]))
+        ],
+        "hww": [
+            plt.get_cmap("Purples")(i)
+            for i in np.linspace(0.1, 1, len(bin_names["hww"]))
+        ],
+        "htt": [
+            plt.get_cmap("Greens")(i)
+            for i in np.linspace(0.1, 1, len(bin_names["htt"]))
+        ],
+    }
+
+    for poi in pois:
+        print(f"Plotting parabolas for {poi}")
+        poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 101)
+        fig, ax = plt.subplots()
+        for channel in args.channels:
             production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
-                poi, production_dct, decays_dct, args.channel
+                poi, production_dct[channel], decays_dct, channel
             )
-            fig, ax = plt.subplots()
             for n, k in enumerate(production_coeffs):
                 ax.plot(
                     poi_range,
                     mu(poi_range, production_coeffs[k], decay_coeffs, tot_coeffs),
-                    label=bin_names[n],
+                    label=f"{channel} {bin_names[channel][n]}",
+                    linestyle=channel_linestyles[channel],
+                    color=channel_colors[channel][n],
                 )
-            ax.legend(loc="upper center", prop={"size": 10}, ncol=4)
-            ax.set_xlabel(poi)
-            ax.set_ylabel("$\mu$")
-            # mplhep boilerplate
-            hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
-            fig.savefig(f"{args.output_dir}/{poi}_{args.channel}_1D.pdf")
-            fig.savefig(f"{args.output_dir}/{poi}_{args.channel}_1D.png")
+        ax.legend(loc="upper center", prop={"size": 10}, ncol=4)
+        ax.set_xlabel(poi)
+        ax.set_ylabel("$\mu$")
+        # mplhep boilerplate
+        hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
+        fig.savefig(f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_1D.pdf")
+        fig.savefig(f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_1D.png")
+        plt.close(fig)
 
-        # plot one figure per POI with the spectrum
-        print("Plotting spectrum...")
-        mass = 125.38
-        weights = [1.0, 2.3, 1.0]
-        hgg_br = 0.0023
-        prediction_file = sm_prediction_files[args.channel]
+    if not args.skip_spectra:
+        for channel in args.channels:
+            # plot one figure per POI with the spectrum
+            print(f"Plotting spectra for channel {channel}...")
+            mass = 125.38
+            weights = [1.0, 2.3, 1.0]
+            hgg_br = 0.0023
+            prediction_file = sm_prediction_files[channel]
 
-        with open(prediction_file, "rb") as f:
-            obs = pkl.load(f)
-            sm_prediction = get_prediction(obs, mass, weights)
-            sm_prediction = sm_prediction / hgg_br
+            with open(prediction_file, "rb") as f:
+                obs = pkl.load(f)
+                sm_prediction = get_prediction(obs, mass, weights)
+                sm_prediction = sm_prediction / hgg_br
 
-        for poi in pois:
-            fig, ax = plt.subplots()
-            poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 4)
-            production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
-                poi, production_dct, decays_dct, args.channel
-            )
-            fig, (ax, rax) = plt.subplots(
-                nrows=2, ncols=1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
-            )
-            mus_stack = []
-            mus_ref_stack = []
-            for n, k in enumerate(production_coeffs):
-                mus = mu(poi_range, production_coeffs[k], decay_coeffs, tot_coeffs)
-                mus_ref = mu(
-                    np.array(0), production_coeffs[k], decay_coeffs, tot_coeffs
+            for poi in pois:
+                fig, ax = plt.subplots()
+                poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 4)
+                production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
+                    poi, production_dct[channel], decays_dct, channel
                 )
-                mus_stack.append(mus)
-                mus_ref_stack.append(mus_ref)
-            mus_stack = np.vstack(mus_stack)
-            mus_ref_stack = np.vstack(mus_ref_stack)
-            hist_ref = sm_prediction * mus_ref_stack[:, 0]
-            ax.stairs(hist_ref, range(len(edges)), label="SM", color="black")
-            rax.stairs(
-                hist_ref / hist_ref, range(len(edges)), label="SM", color="black"
-            )
-            for n, i in enumerate(poi_range):
-                hist = sm_prediction * mus_stack[:, n]
-                hist_ratio = hist / hist_ref
-                print(f"Yields for {poi} = {i}: {list(hist)}")
-                print(f"Mus for {poi} = {i}: {list(mus_stack[:, n])}")
-                ax.stairs(hist, range(len(edges)), label=f"{poi} = {i}")
-                rax.stairs(hist_ratio, range(len(edges)), label=f"{poi} = {i}")
-            ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
-            ax.set_yscale("log")
-            rax.set_xlabel("$p_{T}$")
-            ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
-            rax.set_ylabel("SMEFT/SM")
-            rax.set_xticks(range(len(edges)))
-            rax.set_xticklabels(edges)
-            ax.tick_params(axis="x", which="major", labelsize=10)
-            ax.tick_params(axis="x", which="minor", bottom=False, top=False)
-            rax.tick_params(axis="x", which="major", labelsize=10)
-            rax.tick_params(axis="x", which="minor", bottom=False, top=False)
-            rax.set_xlim(0, len(edges) - 1)
-            hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
-            fig.savefig(f"{args.output_dir}/{poi}_{args.channel}_spectrum.pdf")
-            fig.savefig(f"{args.output_dir}/{poi}_{args.channel}_spectrum.png")
-
-        # now spectra for combinations of the two
-        combs = list(combinations(pois, 2))
-        for comb in combs:
-            poi1 = comb[0]
-            poi2 = comb[1]
-            fig, (ax, rax) = plt.subplots(
-                nrows=2, ncols=1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
-            )
-            production_coeffs, decay_coeffs, tot_coeffs = get_coeffs_2d(
-                poi1, poi2, production_dct, decays_dct, args.channel
-            )
-            poi_range1 = np.linspace(pois_dct[poi1]["min"], pois_dct[poi1]["max"], 6)
-            poi_range2 = np.flip(
-                np.linspace(pois_dct[poi2]["min"], pois_dct[poi2]["max"], 6)
-            )
-            mus_stack = []
-            mus_ref_stack = []
-            for n, k in enumerate(production_coeffs):
-                mus = mu2d(
-                    poi_range1,
-                    poi_range2,
-                    production_coeffs[k],
-                    decay_coeffs,
-                    tot_coeffs,
+                fig, (ax, rax) = plt.subplots(
+                    nrows=2, ncols=1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
                 )
-                mus_ref = mu2d(
-                    np.array(0),
-                    np.array(0),
-                    production_coeffs[k],
-                    decay_coeffs,
-                    tot_coeffs,
-                )
-                mus_stack.append(mus)
-                mus_ref_stack.append(mus_ref)
-            mus_stack = np.vstack(mus_stack)
-            mus_ref_stack = np.vstack(mus_ref_stack)
-            hist_ref = sm_prediction * mus_ref_stack[:, 0]
-            ax.stairs(hist_ref, range(len(edges)), label="SM", color="black")
-            rax.stairs(
-                hist_ref / hist_ref, range(len(edges)), label="SM", color="black"
-            )
-            for n, i in enumerate(zip(poi_range1, poi_range2)):
-                hist = sm_prediction * mus_stack[:, n]
-                hist_ratio = hist / hist_ref
-                print(f"Yields for {poi1} = {i[0]}, {poi2} = {i[1]}: {list(hist)}")
-                print(
-                    f"Mus for {poi1} = {i[0]}, {poi2} = {i[1]}: {list(mus_stack[:, n])}"
-                )
+                mus_stack = []
+                mus_ref_stack = []
+                for n, k in enumerate(production_coeffs):
+                    mus = mu(poi_range, production_coeffs[k], decay_coeffs, tot_coeffs)
+                    mus_ref = mu(
+                        np.array(0), production_coeffs[k], decay_coeffs, tot_coeffs
+                    )
+                    mus_stack.append(mus)
+                    mus_ref_stack.append(mus_ref)
+                mus_stack = np.vstack(mus_stack)
+                mus_ref_stack = np.vstack(mus_ref_stack)
+                hist_ref = sm_prediction * mus_ref_stack[:, 0]
                 ax.stairs(
-                    hist, range(len(edges)), label=f"{poi1} = {i[0]}, {poi2} = {i[1]}"
+                    hist_ref, range(len(edges[channel])), label="SM", color="black"
                 )
                 rax.stairs(
-                    hist_ratio,
-                    range(len(edges)),
-                    label=f"{poi1} = {i[0]}, {poi2} = {i[1]}",
+                    hist_ref / hist_ref,
+                    range(len(edges[channel])),
+                    label="SM",
+                    color="black",
                 )
-            ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
-            ax.set_yscale("log")
-            rax.set_xlabel("$p_{T}$")
-            ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
-            rax.set_ylabel("SMEFT/SM")
-            rax.set_xticks(range(len(edges)))
-            rax.set_xticklabels(edges)
-            ax.tick_params(axis="x", which="major", labelsize=10)
-            ax.tick_params(axis="x", which="minor", bottom=False, top=False)
-            rax.tick_params(axis="x", which="major", labelsize=10)
-            rax.tick_params(axis="x", which="minor", bottom=False, top=False)
-            rax.set_xlim(0, len(edges) - 1)
-            hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
-            fig.savefig(f"{args.output_dir}/{poi1}-{poi2}_{args.channel}_spectrum.pdf")
-            fig.savefig(f"{args.output_dir}/{poi1}-{poi2}_{args.channel}_spectrum.png")
-
-    if args.study == "2D":
-        hep.style.use("CMS")
-        print("Plotting 2D plots...")
-        pairs = list(itertools.combinations(pois, 2))
-        for pair in pairs:
-            poi1, poi2 = pair
-            production_coeffs, decay_coeffs, tot_coeffs = get_coeffs_2d(
-                poi1, poi2, production_dct, decays_dct, args.channel
-            )
-            print("Got following coeffs:")
-            print(f"Production: {production_coeffs}")
-            print(f"Decay: {decay_coeffs}")
-            print(f"Total: {tot_coeffs}")
-            for n, k in enumerate(production_coeffs):
-                fig, ax = plt.subplots()
-                poi_range = np.linspace(
-                    pois_dct[poi1]["min"], pois_dct[poi1]["max"], 101
-                )
-                poi_range2 = np.linspace(
-                    pois_dct[poi2]["min"], pois_dct[poi2]["max"], 101
-                )
-                X, Y = np.meshgrid(poi_range, poi_range2)
-                Z = mu2d(X, Y, production_coeffs[k], decay_coeffs, tot_coeffs)
-                colormap = plt.get_cmap("Oranges")
-                colormap = colormap.reversed()
-                pc = ax.pcolormesh(X, Y, Z, cmap=colormap, shading="gouraud")
-                # ax.contourf(X, Y, Z, levels=np.logspace(-2, 2, 100))
-                ax.set_xlabel(poi1)
-                ax.set_ylabel(poi2)
-                ax.set_xlim(pois_dct[poi1]["min"], pois_dct[poi1]["max"])
-                ax.set_ylim(pois_dct[poi2]["min"], pois_dct[poi2]["max"])
+                for n, i in enumerate(poi_range):
+                    hist = sm_prediction * mus_stack[:, n]
+                    hist_ratio = hist / hist_ref
+                    print(f"Yields for {poi} = {i}: {list(hist)}")
+                    print(f"Mus for {poi} = {i}: {list(mus_stack[:, n])}")
+                    ax.stairs(hist, range(len(edges[channel])), label=f"{poi} = {i}")
+                    rax.stairs(
+                        hist_ratio, range(len(edges[channel])), label=f"{poi} = {i}"
+                    )
+                ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
+                ax.set_yscale("log")
+                rax.set_xlabel("$p_{T}$")
+                ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
+                rax.set_ylabel("SMEFT/SM")
+                rax.set_xticks(range(len(edges[channel])))
+                rax.set_xticklabels(edges[channel])
+                ax.tick_params(axis="x", which="major", labelsize=10)
+                ax.tick_params(axis="x", which="minor", bottom=False, top=False)
+                rax.tick_params(axis="x", which="major", labelsize=10)
+                rax.tick_params(axis="x", which="minor", bottom=False, top=False)
+                rax.set_xlim(0, len(edges[channel]) - 1)
                 hep.cms.label(
                     loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax
                 )
-                fig.colorbar(pc, ax=ax, label="$\mu$")
-                fig.savefig(
-                    f"{args.output_dir}/{bin_names[n]}_{poi1}_{poi2}_{n}_{args.channel}.pdf"
-                )
-                fig.savefig(
-                    f"{args.output_dir}/{bin_names[n]}_{poi1}_{poi2}_{n}_{args.channel}.png"
-                )
-
-    if args.study == "matrix":
-        print("Plotting matrix...")
-        pois_index_dct = {poi: i for i, poi in enumerate(pois)}
-        pairs = list(itertools.combinations(pois, 2))
-        # sorted_keys = sorted_keys[:1]  # debug
-        # bin_names = bin_names[:1]  # debug
-        for edge, bin_name in zip(sorted_keys, bin_names):
-            print(f"Plotting {bin_name}...")
-            fig, ax = plt.subplots(
-                nrows=len(pois),
-                ncols=len(pois),
-                figsize=(5 * len(pois), 5 * len(pois)),
-                constrained_layout=True,
-            )
-            fsize = 12
-            for poi in pois:
-                l_ax = ax[pois_index_dct[poi], pois_index_dct[poi]]
-                poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 101)
-                production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
-                    poi, production_dct, decays_dct, args.channel
-                )
-                l_ax.plot(
-                    poi_range,
-                    mu(poi_range, production_coeffs[edge], decay_coeffs, tot_coeffs),
-                    color="k",
-                )
-                l_ax.set_xlabel(poi, fontsize=fsize)
-                l_ax.set_ylabel("$\mu$", fontsize=fsize)
-                # l_ax.tick_params(left="False")
-                # l_ax.tick_params(axis="x", which="both", bottom=False, top=False)
-            for pair in pairs:
-                all_pairs = [(pair[0], pair[1]), (pair[1], pair[0])]
-                for pair in all_pairs:
-                    poi1, poi2 = pair
-                    l_ax = ax[pois_index_dct[poi1], pois_index_dct[poi2]]
-                    production_coeffs, decay_coeffs, tot_coeffs = get_coeffs_2d(
-                        poi1, poi2, production_dct, decays_dct, args.channel
-                    )
-                    print("Got following coeffs:")
-                    print(f"Production: {production_coeffs}")
-                    print(f"Decay: {decay_coeffs}")
-                    print(f"Total: {tot_coeffs}")
-                    poi_range = np.linspace(
-                        pois_dct[poi1]["min"], pois_dct[poi1]["max"], 101
-                    )
-                    poi_range2 = np.linspace(
-                        pois_dct[poi2]["min"], pois_dct[poi2]["max"], 101
-                    )
-                    X, Y = np.meshgrid(poi_range, poi_range2)
-                    Z = mu2d(X, Y, production_coeffs[edge], decay_coeffs, tot_coeffs)
-                    colormap = plt.get_cmap("Oranges")
-                    colormap = colormap.reversed()
-                    pc = l_ax.pcolormesh(X, Y, Z, cmap=colormap, shading="gouraud")
-                    l_ax.set_xlabel(poi1, fontsize=fsize)
-                    l_ax.set_ylabel(poi2, fontsize=fsize)
-                    fig.colorbar(pc, ax=l_ax, label="$\mu$")
-
-            fig.savefig(f"{args.output_dir}/matrix_{bin_name}_{args.channel}.pdf")
-            fig.savefig(f"{args.output_dir}/matrix_{bin_name}_{args.channel}.png")
+                fig.savefig(f"{args.output_dir}/{poi}_{channel}_spectrum.pdf")
+                fig.savefig(f"{args.output_dir}/{poi}_{channel}_spectrum.png")
 
 
 if __name__ == "__main__":
