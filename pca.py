@@ -41,8 +41,7 @@ def parse_arguments():
 
 
 def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel):
-    if channel == "hgg":
-        channel = "gamgam"
+    channel = max_to_matt[channel]
     res = 0
     try:
         res += production_dct[mu][f"A_{wilson_coeff}"]
@@ -73,7 +72,14 @@ def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel):
 
 
 def plot_rotation_matrix(
-    rot, eigenvalues, wilson_coeffs, channels, output_dir, full=False
+    rot,
+    eigenvalues,
+    wilson_coeffs,
+    channels,
+    output_dir,
+    full=False,
+    suffix="",
+    ev_names=None,
 ):
     # First take only real parts of the rotation matrix and eigenvalues
     rot = np.real(rot)
@@ -82,12 +88,11 @@ def plot_rotation_matrix(
     fig, ax = plt.subplots()
     cmap = plt.get_cmap("bwr")
     # plot only for eigenvalus > 0.001
-    n_eigen_great = (
-        len(eigenvalues) if full else int(np.sum(np.real(eigenvalues) > 0.001))
-    )
-    logging.debug(f"n_eigen_great {n_eigen_great}")
+    threshold = 0.001
+    eigenvalues_mask = np.real(eigenvalues) > threshold
     if not full:
-        rot = rot[:n_eigen_great, :]
+        eigenvalues = eigenvalues[eigenvalues_mask]
+        rot = rot[eigenvalues_mask, :]
     logging.debug(f"rot shape {rot.shape}")
     logging.debug(f"rot {rot}")
     cax = ax.matshow(rot, cmap=cmap, vmin=-1, vmax=1)
@@ -95,27 +100,32 @@ def plot_rotation_matrix(
 
     for i in range(rot.shape[0]):
         for j in range(rot.shape[1]):
-            ax.text(j, i, f"{rot[i, j]:.2f}", va="center", ha="center", fontsize=10)
-
+            if rot[i, j] > 0.009 or rot[i, j] < -0.009:
+                ax.text(j, i, f"{rot[i, j]:.2f}", va="center", ha="center", fontsize=10)
     try:
         xlabels = [SMEFT_parameters_labels[c] for c in wilson_coeffs]
     except KeyError:
         xlabels = wilson_coeffs
-    ylabels = [f"EV{i}" for i in list(range(n_eigen_great))]
+    if ev_names is not None:
+        ylabels = ev_names
+        if not full:
+            ylabels = np.array(ylabels)[eigenvalues_mask]
+    else:
+        ylabels = [f"EV{i}" for i in list(range(len(eigenvalues)))]
 
     ax.set_xticks(np.arange(rot.shape[1]), minor=False)
     ax.set_yticks(np.arange(rot.shape[0]), minor=False)
-    ax.set_xticklabels(xlabels, rotation=45, fontsize=12)
-    ax.set_yticklabels(ylabels, fontsize=12)
+    ax.set_xticklabels(xlabels, rotation=45, fontsize=10)
+    ax.set_yticklabels(ylabels, fontsize=10)
     ax.tick_params(axis="x", which="both", bottom=False, top=False)
     ax.tick_params(axis="y", which="both", left=False, right=False)
 
     # write eigenvalues on the right
-    for i, ev in enumerate(eigenvalues[:n_eigen_great]):
+    for i, ev in enumerate(eigenvalues):
         ax.text(
             rot.shape[1] - 0.45,
             i,
-            f"$\lambda{i}$ = {ev:.3f}",
+            f"$\lambda$ = {ev:.3f}",
             va="center",
             ha="left",
             fontsize=12,
@@ -126,8 +136,12 @@ def plot_rotation_matrix(
 
     # save
     logging.info(f"Saving PCA plot to {output_dir}")
-    fig.savefig(f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}.png")
-    fig.savefig(f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}.pdf")
+    fig.savefig(
+        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.png"
+    )
+    fig.savefig(
+        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.pdf"
+    )
 
 
 def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
@@ -171,7 +185,7 @@ def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
     fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}.pdf")
 
 
-def rotate_back(dct, rot, eigenvalues, wilson_coeffs):
+def rotate_back(dct, rot, wilson_coeffs, ev_names=None):
     """
     dct is a dictionary in the form {
         'A_c1': val,
@@ -212,7 +226,7 @@ def rotate_back(dct, rot, eigenvalues, wilson_coeffs):
 
     v_rot = {}
     for i, iwc in enumerate(wilson_coeffs):
-        iwcrot = f"EV{i}"
+        iwcrot = f"EV{i}" if ev_names is None else ev_names[i]
         if A_rot[i] != 0:
             v_rot[f"A_{iwcrot}"] = np.real(A_rot[i])
         for j, jwc in enumerate(wilson_coeffs):
@@ -337,7 +351,7 @@ def main(args):
         production_dct_rot = {}
         for mu, edge in zip(mus, edges[:-1]):
             production_dct_rot[str(edge)] = rotate_back(
-                production_dct[mu], rot, l, wilson_coeffs
+                production_dct[mu], rot, wilson_coeffs
             )
         logger.info(f"Rotated production dct: {production_dct_rot}")
 
@@ -356,7 +370,7 @@ def main(args):
     # dump decay
     decays_dct_rot = {}
     for dec in [*[max_to_matt[c] for c in args.channels], "tot"]:
-        decays_dct_rot[dec] = rotate_back(decays_dct[dec], rot, l, wilson_coeffs)
+        decays_dct_rot[dec] = rotate_back(decays_dct[dec], rot, wilson_coeffs)
     logger.info(f"Rotated decays dct: {decays_dct_rot}")
 
     with open(f"{base_output_dir}/decay.json", "w") as f:
