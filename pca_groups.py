@@ -136,8 +136,11 @@ def main(args):
     eigenvalues = np.concatenate(eigenvalues)
     ev_names = []
     for submodel_name in submodel_names:
-        for i, wc in enumerate(wilson_coeffs[submodel_name]):
-            ev_names.append(f"EV{submodel_name}{i}")
+        if len(wilson_coeffs[submodel_name]) == 1:
+            ev_names.append(wilson_coeffs[submodel_name][0])
+        else:
+            for i, wc in enumerate(wilson_coeffs[submodel_name]):
+                ev_names.append(f"EV{submodel_name}{i}")
 
     # plot rotation matrix
     for is_full in [True, False]:
