@@ -453,7 +453,7 @@ def main(args):
         logger = setup_logging(level="DEBUG")
     else:
         logger = setup_logging(level="INFO")
-    os.makedirs(args.output_dir, exist_ok=True)
+    # os.makedirs(args.output_dir, exist_ok=True)
 
     multiple_workers = False
     if args.multiprocess:
@@ -607,7 +607,7 @@ def main(args):
                 "marker": "o",
                 "fillstyle": "full",
                 "markersize": 5,
-                "linestyle": "none",
+                # "linestyle": "none",
             },
             "observed_fixed": {
                 "color": "red",
@@ -621,7 +621,7 @@ def main(args):
                 "marker": "o",
                 "fillstyle": "full",
                 "markersize": 5,
-                "linestyle": "none",
+                # "linestyle": "none",
             },
         },
     }

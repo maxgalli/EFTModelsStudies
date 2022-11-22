@@ -11,7 +11,7 @@ from pathlib import Path
 
 hep.style.use("CMS")
 
-from differential_combination_postprocess.utils import setup_logging
+from differential_combination_postprocess.utils import setup_logging, truncate_colormap
 from differential_combination_postprocess.matrix import MatricesExtractor
 from differential_combination_postprocess.cosmetics import SMEFT_parameters_labels
 from utils import (
@@ -46,26 +46,36 @@ def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel):
     try:
         res += production_dct[mu][f"A_{wilson_coeff}"]
     except KeyError:
+        logging.warning(
+            f"Missing production {mu} A_{wilson_coeff} for channel {channel}"
+        )
         pass
     try:
         res += production_dct[mu][f"B_{wilson_coeff}_2"]
     except KeyError:
+        logging.warning(
+            f"Missing production {mu} B_{wilson_coeff}_2 for channel {channel}"
+        )
         pass
     try:
         res += decays_dct[channel][f"A_{wilson_coeff}"]
     except KeyError:
+        logging.warning(f"Missing decays A_{wilson_coeff} for channel {channel}")
         pass
     try:
         res += decays_dct[channel][f"B_{wilson_coeff}_2"]
     except KeyError:
+        logging.warning(f"Missing decays B_{wilson_coeff}_2 for channel {channel}")
         pass
     try:
         res -= decays_dct["tot"][f"A_{wilson_coeff}"]
     except KeyError:
+        logging.warning(f"Missing decays A_{wilson_coeff} for tot")
         pass
     try:
         res -= decays_dct["tot"][f"B_{wilson_coeff}_2"]
     except KeyError:
+        logging.warning(f"Missing decays B_{wilson_coeff}_2 for tot")
         pass
 
     return res
@@ -101,7 +111,7 @@ def plot_rotation_matrix(
     for i in range(rot.shape[0]):
         for j in range(rot.shape[1]):
             if rot[i, j] > 0.009 or rot[i, j] < -0.009:
-                ax.text(j, i, f"{rot[i, j]:.2f}", va="center", ha="center", fontsize=10)
+                ax.text(j, i, f"{rot[i, j]:.2f}", va="center", ha="center", fontsize=8)
     try:
         xlabels = [SMEFT_parameters_labels[c] for c in wilson_coeffs]
     except KeyError:
@@ -159,11 +169,14 @@ def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
     # plot
     fig, ax = plt.subplots()
     cmap = plt.get_cmap("bwr")
+    cmap = truncate_colormap(cmap, 0.5, 0.95)
     cax = ax.matshow(matrix, cmap=cmap, vmin=0, vmax=100)
     for i in range(matrix.shape[0]):
         for j in range(matrix.shape[1]):
-            ax.text(j, i, f"{matrix[i, j]:.2f}", va="center", ha="center", fontsize=10)
-
+            if matrix[i, j] > 0.09:
+                ax.text(
+                    j, i, f"{matrix[i, j]:.1f}", va="center", ha="center", fontsize=8
+                )
     try:
         ylabels = [SMEFT_parameters_labels[c] for c in wilson_coeffs]
     except KeyError:

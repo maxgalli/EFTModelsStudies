@@ -109,6 +109,7 @@ def main(args):
     decays_dct, production_dct, edges = refactor_predictions_multichannel(
         args.prediction_dir, args.channels
     )
+    print(production_dct)
 
     bin_names = {}
     for k, v in production_dct.items():
@@ -117,24 +118,56 @@ def main(args):
     hep.style.use("CMS")
     # plot one figure per POI with the parabolas for each bin
     print("Plotting parabolas...")
-    channel_linestyles = {"hgg": "-", "hzz": "--", "hww": "-.", "htt": ":"}
+    channel_linestyles = {
+        "hgg": "-",
+        "hzz": "--",
+        "hww": "-.",
+        "htt": ":",
+        "hbbvbf": ":",
+        "httboost": "-.",
+    }
     # shades of different colors for each channel
-    channel_colors = {
-        "hgg": [
+    channel_colors = {}
+    try:
+        channel_colors["hgg"] = [
             plt.get_cmap("Reds")(i) for i in np.linspace(0.1, 1, len(bin_names["hgg"]))
-        ],
-        "hzz": [
+        ]
+    except KeyError:
+        pass
+    try:
+        channel_colors["hzz"] = [
             plt.get_cmap("Blues")(i) for i in np.linspace(0.1, 1, len(bin_names["hzz"]))
-        ],
-        "hww": [
+        ]
+    except KeyError:
+        pass
+    try:
+        channel_colors["hww"] = [
             plt.get_cmap("Purples")(i)
             for i in np.linspace(0.1, 1, len(bin_names["hww"]))
-        ],
-        "htt": [
+        ]
+    except KeyError:
+        pass
+    try:
+        channel_colors["htt"] = [
             plt.get_cmap("Greens")(i)
             for i in np.linspace(0.1, 1, len(bin_names["htt"]))
-        ],
-    }
+        ]
+    except KeyError:
+        pass
+    try:
+        channel_colors["hbbvbf"] = [
+            plt.get_cmap("Oranges")(i)
+            for i in np.linspace(0.1, 1, len(bin_names["hbbvbf"]))
+        ]
+    except KeyError:
+        pass
+    try:
+        channel_colors["httboost"] = [
+            plt.get_cmap("Greys")(i)
+            for i in np.linspace(0.1, 1, len(bin_names["httboost"]))
+        ]
+    except KeyError:
+        pass
 
     for poi in pois:
         print(f"Plotting parabolas for {poi}")
@@ -155,6 +188,17 @@ def main(args):
         ax.legend(loc="upper center", prop={"size": 10}, ncol=4)
         ax.set_xlabel(poi)
         ax.set_ylabel("$\mu$")
+        ax.plot(0, 1, marker="P", color="grey", markersize=8)
+        ax.text(
+            0.05,
+            0.95,
+            "$\sigma_{SM}$",
+            va="center",
+            ha="center",
+            fontsize=10,
+            color="grey",
+        )
+
         # mplhep boilerplate
         hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
         fig.savefig(f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_1D.pdf")
@@ -210,9 +254,15 @@ def main(args):
                     hist_ratio = hist / hist_ref
                     print(f"Yields for {poi} = {i}: {list(hist)}")
                     print(f"Mus for {poi} = {i}: {list(mus_stack[:, n])}")
-                    ax.stairs(hist, range(len(edges[channel])), label=f"{poi} = {i}")
+                    ax.stairs(
+                        hist,
+                        range(len(edges[channel])),
+                        label="{} = {:.2f}".format(poi, i),
+                    )
                     rax.stairs(
-                        hist_ratio, range(len(edges[channel])), label=f"{poi} = {i}"
+                        hist_ratio,
+                        range(len(edges[channel])),
+                        label="{} = {:.2f}".format(poi, i),
                     )
                 ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
                 ax.set_yscale("log")

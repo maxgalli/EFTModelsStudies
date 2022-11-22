@@ -66,6 +66,18 @@ all_pois = {
         "r_smH_PTH_350_450",
         "r_smH_PTH_GT450",
     ],
+    "HbbVBF": [
+        "r_smH_PTH_450_500",
+        "r_smH_PTH_500_550",
+        "r_smH_PTH_550_600",
+        "r_smH_PTH_600_675",
+        "r_smH_PTH_675_800",
+        "r_smH_PTH_800_1200",
+    ],
+    "HttBoost": [
+        "r_smH_PTH_450_600",
+        "r_smH_PTH_GT600"
+    ]
 }
 
 
@@ -101,7 +113,7 @@ def main(args):
 
     observable = "smH_PTH"
 
-    are_singles = ["Htt"]
+    are_singles = ["Htt", "HbbVBF"]
 
     values = {}
     categories = [args.channel, f"{args.channel}_asimov"]
