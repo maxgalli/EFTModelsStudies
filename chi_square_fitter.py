@@ -11,6 +11,7 @@ from scipy.optimize import curve_fit
 import logging
 import matplotlib
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 matplotlib.use("AGG")
 import mplhep as hep
@@ -109,22 +110,23 @@ def extract_coeffs(pois, dct, linear_only=False, quadratic_only=False):
             except KeyError:
                 pass
     # mixed
-    prods = product(pois, pois)
-    if len(pois) > 1:
-        for prod in prods:
-            poi1 = prod[0]
-            poi2 = prod[1]
-            try:
-                mu += (
-                    dct[f"B_{poi1['name']}_{poi2['name']}"]
-                    * poi1["value"]
-                    * poi2["value"]
-                )
-                # logging.debug(
-                #    "Mixed term: {}".format(dct[f"B_{poi['name']}_{poi['name']}"])
-                # )
-            except KeyError:
-                pass
+    if not linear_only:
+        prods = product(pois, pois)
+        if len(pois) > 1:
+            for prod in prods:
+                poi1 = prod[0]
+                poi2 = prod[1]
+                try:
+                    mu += (
+                        dct[f"B_{poi1['name']}_{poi2['name']}"]
+                        * poi1["value"]
+                        * poi2["value"]
+                    )
+                    # logging.debug(
+                    #    "Mixed term: {}".format(dct[f"B_{poi['name']}_{poi['name']}"])
+                    # )
+                except KeyError:
+                    pass
     return mu
 
 
@@ -149,15 +151,16 @@ def extract_coeffs_string(pois, dct, linear_only=False, quadratic_only=False):
             except KeyError:
                 pass
     # mixed
-    prods = product(pois, pois)
-    if len(pois) > 1:
-        for prod in prods:
-            poi1 = prod[0]
-            poi2 = prod[1]
-            try:
-                mu += " + {} * {} * {}".format(dct[f"B_{poi1}_{poi2}"], poi1, poi2)
-            except KeyError:
-                pass
+    if not linear_only:
+        prods = product(pois, pois)
+        if len(pois) > 1:
+            for prod in prods:
+                poi1 = prod[0]
+                poi2 = prod[1]
+                try:
+                    mu += " + {} * {} * {}".format(dct[f"B_{poi1}_{poi2}"], poi1, poi2)
+                except KeyError:
+                    pass
     return mu
 
 
@@ -517,6 +520,10 @@ def main(args):
     )
     logger.debug(f"production_dct: {production_dct_of_dcts}")
     logger.debug(f"production_dct keys: {list(production_dct_of_dcts.keys())}")
+    output_dir = os.path.join(
+        args.output_dir, args.prediction_dir.split("/")[-1] + "-" + submodel_name
+    )
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Now refactor in order to make everything work in EFTFitter
     mus_dict = {}
@@ -657,10 +664,10 @@ def main(args):
         ax.legend()
         logger.info(f"Saving plots for poi {poi}")
         fig.savefig(
-            f"{args.output_dir}/{poi}_{''.join(args.channels)}_{args.suffix}.png"
+            f"{output_dir}/{poi}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.png"
         )
         fig.savefig(
-            f"{args.output_dir}/{poi}_{''.join(args.channels)}_{args.suffix}.pdf"
+            f"{output_dir}/{poi}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.pdf"
         )
         plt.close(fig)
     if not args.skip2D:
@@ -716,10 +723,10 @@ def main(args):
             ax.legend()
             logger.info(f"Saving plots for pois {poi1} vs {poi2}")
             fig.savefig(
-                f"{args.output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{args.suffix}.png"
+                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.png"
             )
             fig.savefig(
-                f"{args.output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{args.suffix}.pdf"
+                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.pdf"
             )
             plt.close(fig)
 

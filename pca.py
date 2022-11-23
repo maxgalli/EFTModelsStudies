@@ -8,6 +8,7 @@ import mplhep as hep
 import matplotlib.pyplot as plt
 import logging
 from pathlib import Path
+import os
 
 hep.style.use("CMS")
 
@@ -37,10 +38,17 @@ def parse_arguments():
 
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
 
+    parser.add_argument(
+        "--how",
+        choices=["A", "AB"],
+        default="A",
+        help="Whether include Bs or not when computing P",
+    )
+
     return parser.parse_args()
 
 
-def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel):
+def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel, how):
     channel = max_to_matt[channel]
     res = 0
     try:
@@ -50,33 +58,45 @@ def get_p_ij(mu, wilson_coeff, production_dct, decays_dct, channel):
             f"Missing production {mu} A_{wilson_coeff} for channel {channel}"
         )
         pass
-    try:
-        res += production_dct[mu][f"B_{wilson_coeff}_2"]
-    except KeyError:
-        logging.warning(
-            f"Missing production {mu} B_{wilson_coeff}_2 for channel {channel}"
-        )
-        pass
+    if how == "AB":
+        try:
+            res += production_dct[mu][f"B_{wilson_coeff}_2"]
+        except KeyError:
+            logging.warning(
+                f"Missing production {mu} B_{wilson_coeff}_2 for channel {channel}"
+            )
+            pass
+        for k in production_dct[mu].keys():
+            if k.startswith("B_") and not k.endswith("_2") and wilson_coeff in k:
+                res += production_dct[mu][k] / 2
     try:
         res += decays_dct[channel][f"A_{wilson_coeff}"]
     except KeyError:
         logging.warning(f"Missing decays A_{wilson_coeff} for channel {channel}")
         pass
-    try:
-        res += decays_dct[channel][f"B_{wilson_coeff}_2"]
-    except KeyError:
-        logging.warning(f"Missing decays B_{wilson_coeff}_2 for channel {channel}")
-        pass
+    if how == "AB":
+        try:
+            res += decays_dct[channel][f"B_{wilson_coeff}_2"]
+        except KeyError:
+            logging.warning(f"Missing decays B_{wilson_coeff}_2 for channel {channel}")
+            pass
+        for k in decays_dct[channel].keys():
+            if k.startswith("B_") and not k.endswith("_2") and wilson_coeff in k:
+                res += decays_dct[channel][k] / 2
     try:
         res -= decays_dct["tot"][f"A_{wilson_coeff}"]
     except KeyError:
         logging.warning(f"Missing decays A_{wilson_coeff} for tot")
         pass
-    try:
-        res -= decays_dct["tot"][f"B_{wilson_coeff}_2"]
-    except KeyError:
-        logging.warning(f"Missing decays B_{wilson_coeff}_2 for tot")
-        pass
+    if how == "AB":
+        try:
+            res -= decays_dct["tot"][f"B_{wilson_coeff}_2"]
+        except KeyError:
+            logging.warning(f"Missing decays B_{wilson_coeff}_2 for tot")
+            pass
+        for k in decays_dct["tot"].keys():
+            if k.startswith("B_") and not k.endswith("_2") and wilson_coeff in k:
+                res -= decays_dct["tot"][k] / 2
 
     return res
 
@@ -154,7 +174,7 @@ def plot_rotation_matrix(
     )
 
 
-def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
+def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir, suffix=""):
     # plot at page 34 here https://arxiv.org/pdf/2105.00006.pdf
     # input is a dictionary where every key is a channel and the value is a matrix
     channels = list(C_inv_smeft_dct.keys())
@@ -194,8 +214,8 @@ def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir):
 
     # save
     logging.info(f"Saving fisher information plot to {output_dir}")
-    fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}.png")
-    fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}.pdf")
+    fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}{suffix}.png")
+    fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}{suffix}.pdf")
 
 
 def rotate_back(dct, rot, wilson_coeffs, ev_names=None):
@@ -298,7 +318,12 @@ def main(args):
             for wc in wilson_coeffs:
                 row.append(
                     get_p_ij(
-                        mu, wc, production_dct_of_dcts[channel], decays_dct, channel
+                        mu,
+                        wc,
+                        production_dct_of_dcts[channel],
+                        decays_dct,
+                        channel,
+                        how=args.how,
                     )
                 )
             lol.append(row)
@@ -310,8 +335,14 @@ def main(args):
             P_dct[channel].T, np.dot(C_diff_inv_dct[channel], P_dct[channel])
         )
 
+    model_name = args.model_yaml.split("/")[-1].split(".")[0]
+    output_dir = os.path.join(
+        args.output_dir, args.prediction_dir.split("/")[-1] + "-" + model_name
+    )
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
     # Before putting them togheter, plot diag_fisher
-    plot_diag_fisher(C_smeft_inv_dct, wilson_coeffs, args.output_dir)
+    plot_diag_fisher(C_smeft_inv_dct, wilson_coeffs, output_dir, suffix=f"-{args.how}")
 
     # Now attach them and proceed with PCA
     C_diff_inv = block_diag(
@@ -346,14 +377,21 @@ def main(args):
     # rot = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     # l = np.array([3, 2, 0.00001])
     # wilson_coeffs = ["C7", "C8", "C9"]
-    plot_rotation_matrix(rot, l, wilson_coeffs, args.channels, args.output_dir)
     plot_rotation_matrix(
-        rot, l, wilson_coeffs, args.channels, args.output_dir, full=True
+        rot, l, wilson_coeffs, args.channels, output_dir, suffix=f"-{args.how}"
+    )
+    plot_rotation_matrix(
+        rot,
+        l,
+        wilson_coeffs,
+        args.channels,
+        output_dir,
+        full=True,
+        suffix=f"-{args.how}",
     )
 
-    model_name = args.model_yaml.split("/")[-1].split(".")[0]
     base_output_dir = (
-        f"{args.prediction_dir}_rotated{model_name}{''.join(args.channels)}"
+        f"{args.prediction_dir}_rotated{model_name}{''.join(args.channels)}{args.how}"
     )
     for channel in args.channels:
         mus = mus_dct[channel]
