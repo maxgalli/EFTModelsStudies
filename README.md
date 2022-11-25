@@ -97,3 +97,7 @@ Note that a new directory will be created next to the one specified in ```--pred
 # Full Preliminar Study of a Model
 
 This whole thing can be used to perform a preliminar study of SMEFT (but also kappa-framework) models that are then fitted in Combine using the full likelihood. In order to do this, we refer to the [Run2 Differential Combination](https://gitlab.cern.ch/magalli/DifferentialCombinationRun2) and in particular the files in ```metadata/SMEFT```. These files define subgroups of POIs and their ranges to be used together with the above mentioned EFTScalingEquations.
+
+# Notes
+
+Part of the docs migrated to [Full Run2 Differential Combination docs](https://maxgalli.github.io/run2-diff-comb-docs/workflow_summary_eft.html).
