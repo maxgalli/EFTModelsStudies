@@ -126,7 +126,8 @@ def plot_rotation_matrix(
     logging.debug(f"rot shape {rot.shape}")
     logging.debug(f"rot {rot}")
     cax = ax.matshow(rot, cmap=cmap, vmin=-1, vmax=1)
-    # cbar = fig.colorbar(cax)
+    # cbar = fig.colorbar(cax, location="left", shrink=0.6)
+    # cbar.ax.tick_params(labelsize=12)
 
     for i in range(rot.shape[0]):
         for j in range(rot.shape[1]):
@@ -152,15 +153,16 @@ def plot_rotation_matrix(
 
     # write eigenvalues on the right
     for i, ev in enumerate(eigenvalues):
-        ax.text(
-            rot.shape[1] - 0.45,
-            i,
-            f"$\lambda$ = {ev:.3f}",
-            va="center",
-            ha="left",
-            fontsize=12,
-            color="black",
-        )
+        if ev > threshold:
+            ax.text(
+                rot.shape[1] - 0.45,
+                i,
+                f"$\lambda$ = {ev:.3f}",
+                va="center",
+                ha="left",
+                fontsize=12,
+                color="black",
+            )
 
     fig.tight_layout()
 
@@ -370,6 +372,9 @@ def main(args):
     # define rotation matrix
     rot = linalg.inv(v)
     # rot = linalg.inv(v).T # jonno
+    # normalize to 1 along rows (divide by norm of each row)
+    # This was tested on 08.12.2022: fits and rotated equations do not seem to give different results
+    rot = rot / np.linalg.norm(rot, axis=1)[:, np.newaxis]
     logger.debug(f"Rotation matrix: {rot}")
 
     # plot rotation matrix
