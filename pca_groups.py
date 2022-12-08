@@ -8,6 +8,7 @@ import mplhep as hep
 import matplotlib.pyplot as plt
 import logging
 from pathlib import Path
+import os
 
 hep.style.use("CMS")
 
@@ -100,7 +101,12 @@ def main(args):
                 for wc in wilson_coeffs[submodel_name]:
                     row.append(
                         get_p_ij(
-                            mu, wc, production_dct_of_dcts[channel], decays_dct, channel
+                            mu,
+                            wc,
+                            production_dct_of_dcts[channel],
+                            decays_dct,
+                            channel,
+                            how="A",
                         )
                     )
                 lol.append(row)
@@ -143,13 +149,17 @@ def main(args):
                 ev_names.append(f"EV{submodel_name}{i}")
 
     # plot rotation matrix
+    output_dir = os.path.join(
+        args.output_dir, args.prediction_dir.split("/")[-1] + "-" + model_name
+    )
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
     for is_full in [True, False]:
         plot_rotation_matrix(
             rot,
             eigenvalues,
             all_wilson_coeffs,
             args.channels,
-            args.output_dir,
+            output_dir,
             full=is_full,
             suffix="-groups",
             ev_names=ev_names,
