@@ -50,10 +50,11 @@ def parse_arguments():
 
     parser.add_argument("--suffix", type=str, required=False, default="", help="")
 
-    parser.add_argument("--linear", action="store_true", help="Fit only linear terms")
-
     parser.add_argument(
-        "--quadratic", action="store_true", help="Fit only quadratic terms"
+        "--fit-model",
+        choices=["full", "linear", "linearised"],
+        default="full",
+        help="What type of model to fit",
     )
 
     parser.add_argument(
@@ -69,6 +70,12 @@ def parse_arguments():
         "--distributed",
         action="store_true",
         help="Use dask jobqueue to speed up the fit",
+    )
+
+    parser.add_argument(
+        "--with-observed",
+        action="store_true",
+        help="Use observed data along with expected",
     )
 
     parser.add_argument("--debug", action="store_true", help="Print debug messages")
@@ -87,30 +94,32 @@ def corr_to_cov(corr, standard_deviations):
     return dsd.dot(corr).dot(dsd)
 
 
-def extract_coeffs(pois, dct, linear_only=False, quadratic_only=False):
+def extract_coeffs(pois, dct, fit_model="full"):
     """
     pois is a list of dicts with shape {'name': name, 'value': value} in case of print_coeffs=False, otherwise it is just a list of strings
     return 1D array with lenght len(self.mus)
     """
-    mu = 1
+    if fit_model == "linearised":
+        mu = 0
+    else:
+        mu = 1
     for poi in pois:
         # logging.debug(f"Extract coeff for {poi['name']}")
         # linear
-        if not quadratic_only:
-            try:
-                mu += dct[f"A_{poi['name']}"] * poi["value"]
-                # logging.debug("Linear term: {}".format(dct[f"A_{poi['name']}"]))
-            except KeyError:
-                pass
+        try:
+            mu += dct[f"A_{poi['name']}"] * poi["value"]
+            # logging.debug("Linear term: {}".format(dct[f"A_{poi['name']}"]))
+        except KeyError:
+            pass
         # quadratic
-        if not linear_only:
+        if fit_model == "full":
             try:
                 mu += dct[f"B_{poi['name']}_2"] * poi["value"] ** 2
                 # logging.debug("Quadratic term: {}".format(dct[f"B_{poi['name']}_2"]))
             except KeyError:
                 pass
     # mixed
-    if not linear_only:
+    if fit_model == "full":
         prods = product(pois, pois)
         if len(pois) > 1:
             for prod in prods:
@@ -130,28 +139,30 @@ def extract_coeffs(pois, dct, linear_only=False, quadratic_only=False):
     return mu
 
 
-def extract_coeffs_string(pois, dct, linear_only=False, quadratic_only=False):
+def extract_coeffs_string(pois, dct, fit_model="full"):
     """
     pois is a list of dicts with shape {'name': name, 'value': value} in case of print_coeffs=False, otherwise it is just a list of strings
     return 1D array with lenght len(self.mus)
     """
-    mu = "1"
+    if fit_model == "linearised":
+        mu = ""
+    else:
+        mu = "1"
     for poi in pois:
         # logging.debug(f"Extract coeff for {poi['name']}")
         # linear
-        if not quadratic_only:
-            try:
-                mu += " + {} * {}".format(dct[f"A_{poi}"], poi)
-            except KeyError:
-                pass
+        try:
+            mu += " + {} * {}".format(dct[f"A_{poi}"], poi)
+        except KeyError:
+            pass
         # quadratic
-        if not linear_only:
+        if fit_model == "full":
             try:
                 mu += " + {} * {}^2".format(dct[f"B_{poi}_2"], poi)
             except KeyError:
                 pass
     # mixed
-    if not linear_only:
+    if fit_model == "full":
         prods = product(pois, pois)
         if len(pois) > 1:
             for prod in prods:
@@ -164,9 +175,7 @@ def extract_coeffs_string(pois, dct, linear_only=False, quadratic_only=False):
     return mu
 
 
-def get_mu_prediction(
-    pois, mus, production_dct, decays_dct, linear_only=False, quadratic_only=False
-):
+def get_mu_prediction(pois, mus, production_dct, decays_dct, fit_model="full"):
     """
     pois is a list of dicts with shape {'name': name, 'value': value}
     """
@@ -174,58 +183,32 @@ def get_mu_prediction(
     for mu in mus:
         channel = mu.split("_")[-1]
         channel = max_to_matt[channel]
-        prod_term = extract_coeffs(
-            pois,
-            production_dct[mu],
-            linear_only=linear_only,
-            quadratic_only=quadratic_only,
-        )
-        br_num = extract_coeffs(
-            pois,
-            decays_dct[channel],
-            linear_only=linear_only,
-            quadratic_only=quadratic_only,
-        )
-        br_den = extract_coeffs(
-            pois,
-            decays_dct["tot"],
-            linear_only=linear_only,
-            quadratic_only=quadratic_only,
-        )
-        pred_mus.append(prod_term * br_num / br_den)
+        prod_term = extract_coeffs(pois, production_dct[mu], fit_model=fit_model)
+        br_num = extract_coeffs(pois, decays_dct[channel], fit_model=fit_model)
+        br_den = extract_coeffs(pois, decays_dct["tot"], fit_model=fit_model)
+        if fit_model == "linearised":
+            pred_mus.append(1 + prod_term + br_num - br_den)
+        else:
+            pred_mus.append(prod_term * br_num / br_den)
 
     return np.array(pred_mus)
 
 
-def get_mu_prediction_string(
-    pois, mus, production_dct, decays_dct, linear_only=False, quadratic_only=False
-):
+def get_mu_prediction_string(pois, mus, production_dct, decays_dct, fit_model="full"):
     pred_mus = {}
     for mu in mus:
         channel = mu.split("_")[-1]
         channel = max_to_matt[channel]
-        prod_term = extract_coeffs_string(
-            pois,
-            production_dct[mu],
-            linear_only=linear_only,
-            quadratic_only=quadratic_only,
-        )
-        br_num = extract_coeffs_string(
-            pois,
-            decays_dct[channel],
-            linear_only=linear_only,
-            quadratic_only=quadratic_only,
-        )
-        br_den = extract_coeffs_string(
-            pois,
-            decays_dct["tot"],
-            linear_only=linear_only,
-            quadratic_only=quadratic_only,
-        )
-        pred_mus[mu] = {}
-        pred_mus[mu]["prod"] = prod_term
-        pred_mus[mu]["br_num"] = br_num
-        pred_mus[mu]["br_den"] = br_den
+        prod_term = extract_coeffs_string(pois, production_dct[mu], fit_model=fit_model)
+        br_num = extract_coeffs_string(pois, decays_dct[channel], fit_model=fit_model)
+        br_den = extract_coeffs_string(pois, decays_dct["tot"], fit_model=fit_model)
+        if fit_model == "linearised":
+            pred_mus[mu] = "1 + {} + {} - ({})".format(prod_term, br_num, br_den)
+        else:
+            pred_mus[mu] = {}
+            pred_mus[mu]["prod"] = prod_term
+            pred_mus[mu]["br_num"] = br_num
+            pred_mus[mu]["br_den"] = br_den
 
     return pred_mus
 
@@ -239,8 +222,7 @@ class EFTFitter:
         submodel_dict,
         production_coeffs_dict,
         decay_coeffs_dict,
-        linear=False,
-        quadratic=False,
+        fit_model="full",
     ):
         """
         """
@@ -248,8 +230,7 @@ class EFTFitter:
         self.pois_dict = submodel_dict
         self.production_coeffs_dict = production_coeffs_dict
         self.decay_coeffs_dict = decay_coeffs_dict
-        self.linear = linear
-        self.quadratic = quadratic
+        self.fit_model = fit_model
 
         self.y0 = np.array([mus_dict[mu]["bestfit"] for mu in self.mus])
         self.y0_asimov = np.ones(len(self.y0))
@@ -295,6 +276,7 @@ class EFTFitter:
             fun=to_minimize,
             x0=[v["val"] for v in params_to_float.values()],
             method="TNC",
+            # method="SLSQP",
             bounds=[(v["min"], v["max"]) for v in params_to_float.values()],
         )
 
@@ -336,8 +318,7 @@ class EFTFitter:
                     self.mus,
                     self.production_coeffs_dict,
                     self.decay_coeffs_dict,
-                    linear_only=self.linear,
-                    quadratic_only=self.quadratic,
+                    fit_model=self.fit_model,
                 )
                 chi = chi_square(y0, y, y_err)
 
@@ -414,8 +395,7 @@ class EFTFitter:
                         self.mus,
                         self.production_coeffs_dict,
                         self.decay_coeffs_dict,
-                        linear_only=self.linear,
-                        quadratic_only=self.quadratic,
+                        fit_model=self.fit_model,
                     )
                     chi = chi_square(y0, y, y_err)
                     return chi
@@ -445,8 +425,7 @@ class EFTFitter:
             self.mus,
             self.production_coeffs_dict,
             self.decay_coeffs_dict,
-            linear_only=self.linear,
-            quadratic_only=self.quadratic,
+            fit_model=self.fit_model,
         )
         print(json.dumps(predictions_dct, indent=4))
 
@@ -457,6 +436,8 @@ def main(args):
     else:
         logger = setup_logging(level="INFO")
     # os.makedirs(args.output_dir, exist_ok=True)
+
+    fit_model = args.fit_model
 
     multiple_workers = False
     if args.multiprocess:
@@ -555,8 +536,7 @@ def main(args):
         submodel_dict,
         production_dct,
         decays_dct,
-        args.linear,
-        args.quadratic,
+        fit_model,
     )
 
     logger.info("First printing scaling equations")
@@ -579,8 +559,19 @@ def main(args):
                 how="profiled", expected=True, multiprocess=multiple_workers
             ),
         }
-    # results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
-    # results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
+    if args.with_observed:
+        results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
+        if not args.skip2D:
+            results["observed_fixed"] = {
+                **results["observed_fixed"],
+                **fitter.scan2D(how="fixed", expected=False),
+            }
+        results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
+        if not args.skip2D:
+            results["observed_profiled"] = {
+                **results["observed_profiled"],
+                **fitter.scan2D(how="profiled", expected=False),
+            }
     if multiple_workers:
         results = client.gather(results)
     for k, v in results.items():
@@ -664,10 +655,10 @@ def main(args):
         ax.legend()
         logger.info(f"Saving plots for poi {poi}")
         fig.savefig(
-            f"{output_dir}/{poi}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.png"
+            f"{output_dir}/{poi}_{''.join(args.channels)}_{fit_model}_{args.suffix}.png"
         )
         fig.savefig(
-            f"{output_dir}/{poi}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.pdf"
+            f"{output_dir}/{poi}_{''.join(args.channels)}_{fit_model}_{args.suffix}.pdf"
         )
         plt.close(fig)
     if not args.skip2D:
@@ -723,10 +714,10 @@ def main(args):
             ax.legend()
             logger.info(f"Saving plots for pois {poi1} vs {poi2}")
             fig.savefig(
-                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.png"
+                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{fit_model}_{args.suffix}.png"
             )
             fig.savefig(
-                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{'linear' if args.linear else ''}_{args.suffix}.pdf"
+                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{fit_model}_{args.suffix}.pdf"
             )
             plt.close(fig)
 

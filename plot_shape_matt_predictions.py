@@ -30,6 +30,12 @@ def parse_arguments():
     parser.add_argument(
         "--skip-spectra", action="store_true", help="Skip plotting spectra"
     )
+    parser.add_argument(
+        "--fit-model",
+        choices=["full", "linear", "linearised"],
+        default="full",
+        help="What type of model to fit",
+    )
 
     return parser.parse_args()
 
@@ -65,16 +71,24 @@ def get_prediction(arr, mass, weights=None, interPRepl=None, massRepl=None):
     return np.array([splines[i](mass) for i in range(nBins)])
 
 
-def mu(pois, coeff_prod, coeff_decay, coeff_tot):
+def mu(pois, coeff_prod, coeff_decay, coeff_tot, fit_model="full"):
     """
     pois: numpy array of pois to be tested
     others can be lists
     """
-    prod = 1 + pois * coeff_prod[0] + pois ** 2 * coeff_prod[1]
-    decay = 1 + pois * coeff_decay[0] + pois ** 2 * coeff_decay[1]
-    tot = 1 + pois * coeff_tot[0] + pois ** 2 * coeff_tot[1]
+    if fit_model == "linearised":
+        return 1 + pois * (coeff_prod[0] + coeff_decay[0] - coeff_tot[0])
+    else:
+        if fit_model == "linear":
+            prod = 1 + pois * coeff_prod[0]
+            decay = 1 + pois * coeff_decay[0]
+            tot = 1 + pois * coeff_tot[0]
+        else:
+            prod = 1 + pois * coeff_prod[0] + pois ** 2 * coeff_prod[1]
+            decay = 1 + pois * coeff_decay[0] + pois ** 2 * coeff_decay[1]
+            tot = 1 + pois * coeff_tot[0] + pois ** 2 * coeff_tot[1]
 
-    return prod * (decay / tot)
+        return prod * (decay / tot)
 
 
 def get_coeffs(poi, production_dct, decays_dct, channel):
@@ -117,7 +131,7 @@ def main(args):
 
     hep.style.use("CMS")
     # plot one figure per POI with the parabolas for each bin
-    print("Plotting parabolas...")
+    print(f"Plotting parabolas with fit_model = {args.fit_model}...")
     channel_linestyles = {
         "hgg": "-",
         "hzz": "--",
@@ -180,7 +194,13 @@ def main(args):
             for n, k in enumerate(production_coeffs):
                 ax.plot(
                     poi_range,
-                    mu(poi_range, production_coeffs[k], decay_coeffs, tot_coeffs),
+                    mu(
+                        poi_range,
+                        production_coeffs[k],
+                        decay_coeffs,
+                        tot_coeffs,
+                        fit_model=args.fit_model,
+                    ),
                     label=f"{channel} {bin_names[channel][n]}",
                     linestyle=channel_linestyles[channel],
                     color=channel_colors[channel][n],
@@ -201,8 +221,12 @@ def main(args):
 
         # mplhep boilerplate
         hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
-        fig.savefig(f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_1D.pdf")
-        fig.savefig(f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_1D.png")
+        fig.savefig(
+            f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_{args.fit_model}_1D.pdf"
+        )
+        fig.savefig(
+            f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_{args.fit_model}_1D.png"
+        )
         plt.close(fig)
 
     if not args.skip_spectra:
