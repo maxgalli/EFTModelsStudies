@@ -176,7 +176,7 @@ def plot_rotation_matrix(
     )
 
 
-def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir, suffix=""):
+def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir, suffix="", normalize_columns=False):
     # plot at page 34 here https://arxiv.org/pdf/2105.00006.pdf
     # input is a dictionary where every key is a channel and the value is a matrix
     channels = list(C_inv_smeft_dct.keys())
@@ -185,8 +185,12 @@ def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir, suffix=""):
         diagonals.append(np.diag(C_inv))
     logging.debug(f"diagonals {diagonals}")
     matrix = np.array(diagonals).T
-    # normalize to 100 along rows
-    matrix = matrix / np.sum(matrix, axis=1)[:, np.newaxis] * 100
+    if normalize_columns:
+        # normalize to 100 along columns
+        matrix = matrix / np.sum(matrix, axis=0)[np.newaxis, :] * 100
+    else:
+        # normalize to 100 along rows
+        matrix = matrix / np.sum(matrix, axis=1)[:, np.newaxis] * 100
     logging.debug(f"Produced fake Fisher matrix of shape {matrix.shape}")
     # plot
     fig, ax = plt.subplots()
@@ -302,6 +306,12 @@ def main(args):
     P_dct = {}
     C_smeft_inv_dct = {}
 
+    model_name = args.model_yaml.split("/")[-1].split(".")[0]
+    output_dir = os.path.join(
+        args.output_dir, args.prediction_dir.split("/")[-1] + "-" + model_name
+    )
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
     for channel in args.channels:
         logger.info(f"Processing channel {channel} for C_diff_inv, P, C_smeft_inv")
         # Build C_diff
@@ -337,11 +347,9 @@ def main(args):
             P_dct[channel].T, np.dot(C_diff_inv_dct[channel], P_dct[channel])
         )
 
-    model_name = args.model_yaml.split("/")[-1].split(".")[0]
-    output_dir = os.path.join(
-        args.output_dir, args.prediction_dir.split("/")[-1] + "-" + model_name
-    )
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+        C_smeft_inv_dct_local = {}
+        C_smeft_inv_dct_local[channel] = C_smeft_inv_dct[channel]
+        plot_diag_fisher(C_smeft_inv_dct_local, wilson_coeffs, output_dir, suffix=f"-{args.how}-{channel}", normalize_columns=True)
 
     # Before putting them togheter, plot diag_fisher
     plot_diag_fisher(C_smeft_inv_dct, wilson_coeffs, output_dir, suffix=f"-{args.how}")
@@ -374,7 +382,7 @@ def main(args):
     # rot = linalg.inv(v).T # jonno
     # normalize to 1 along rows (divide by norm of each row)
     # This was tested on 08.12.2022: fits and rotated equations do not seem to give different results
-    rot = rot / np.linalg.norm(rot, axis=1)[:, np.newaxis]
+    # rot = rot / np.linalg.norm(rot, axis=1)[:, np.newaxis]
     logger.debug(f"Rotation matrix: {rot}")
 
     # plot rotation matrix
