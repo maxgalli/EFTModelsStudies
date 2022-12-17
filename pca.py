@@ -273,7 +273,7 @@ def rotate_back(dct, rot, wilson_coeffs, ev_names=None):
                 if B_rot[i, j] != 0:
                     v_rot[f"B_{iwcrot}_2"] = np.real(B_rot[i, j])
             elif j > i:
-                jwcrot = f"EV{j}"
+                jwcrot = f"EV{j}" if ev_names is None else ev_names[j]
                 if B_rot[i, j] != 0:
                     v_rot[f"B_{iwcrot}_{jwcrot}"] = 2 * np.real(B_rot[i, j])
 
