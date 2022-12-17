@@ -1,5 +1,6 @@
 import numpy as np
 import json
+import matplotlib.pyplot as plt
 
 
 robusthesse_paths = {
@@ -118,3 +119,29 @@ def refactor_predictions_multichannel(prediction_dir, channels):
             prediction_dir, channel
         )
     return decays_dct, production_dct, edges
+
+
+def print_corr_matrix(matrix, coefficients, output_name):
+    fig, ax = plt.subplots()
+    cmap = plt.get_cmap("bwr")
+    cax = ax.matshow(matrix, cmap=cmap, vmin=-1, vmax=1)
+    cbar = plt.colorbar(cax)
+
+    for i in range(len(matrix)):
+        for j in range(len(matrix)):
+            c = matrix[j, i]
+            ax.text(
+                i, j, str("{:.4f}".format(c)), va="center", ha="center", fontsize=12
+            )
+
+    labels = coefficients
+    ax.set_xticks(np.arange(len(matrix)), minor=False)
+    ax.set_yticks(np.arange(len(matrix)), minor=False)
+    ax.set_xticklabels(labels, rotation=45, fontsize=12)
+    ax.set_yticklabels(labels, rotation=45, fontsize=12)
+    ax.tick_params(axis="x", which="both", bottom=False, top=False)
+    ax.tick_params(axis="y", which="both", left=False, right=False)
+
+    # save
+    fig.savefig(f"{output_name}.png")
+    fig.savefig(f"{output_name}.pdf")

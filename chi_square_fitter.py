@@ -12,6 +12,7 @@ import logging
 import matplotlib
 import matplotlib.pyplot as plt
 from pathlib import Path
+from iminuit import Minuit
 
 matplotlib.use("AGG")
 import mplhep as hep
@@ -31,6 +32,7 @@ from utils import (
     mus_paths,
     corr_matrices_observed,
     corr_matrices_expected,
+    print_corr_matrix,
 )
 from differential_combination_postprocess.utils import setup_logging
 
@@ -249,7 +251,7 @@ class EFTFitter:
         self.y_err = corr_to_cov(obs_correlation_matrix, y0_stdvs)
         self.y_err_asimov = corr_to_cov(exp_correlation_matrix, y0_stdvs_asimov)
 
-    def minimize(self, params_to_float, params_to_freeze, y0, y_err):
+    def minimize(self, params_to_float, params_to_freeze, y0, y_err, return_corr=False):
         """
         Has to return a list of dicts {'name': name, 'value': value}
         """
@@ -272,20 +274,38 @@ class EFTFitter:
             )
             return chi_square(y0, mus, y_err)
 
-        res = scipy_minimize(
-            fun=to_minimize,
-            x0=[v["val"] for v in params_to_float.values()],
-            method="TNC",
-            # method="SLSQP",
-            bounds=[(v["min"], v["max"]) for v in params_to_float.values()],
-        )
+        if return_corr:
+            m = Minuit(to_minimize, [v["val"] for v in params_to_float.values()])
+            m.limits = [(v["min"], v["max"]) for v in params_to_float.values()]
+            m.migrad()
+            m.hesse()
 
-        ret = [
-            {"name": name, "value": value}
-            for name, value in zip(params_to_float, res.x)
-        ]
+            return m.covariance.correlation()
+        else:
+            res = scipy_minimize(
+                fun=to_minimize,
+                x0=[v["val"] for v in params_to_float.values()],
+                method="TNC",
+                # method="SLSQP",
+                bounds=[(v["min"], v["max"]) for v in params_to_float.values()],
+            )
+
+            ret = [
+                {"name": name, "value": value}
+                for name, value in zip(params_to_float, res.x)
+            ]
 
         return ret
+
+    def compute_correlation_matrix(self, expected=False):
+        logging.info("Computing covariance matrix")
+        pois_to_float = self.pois_dict
+        pois_to_freeze = {}
+        y0 = self.y0 if not expected else self.y0_asimov
+        y_err = self.y_err if not expected else self.y_err_asimov
+        corr = self.minimize(pois_to_float, pois_to_freeze, y0, y_err, return_corr=True)
+
+        return corr
 
     def scan(self, how, expected=False, points=100, multiprocess=False):
         logging.info(f"Scanning {how} with expected={expected}")
@@ -584,6 +604,11 @@ def main(args):
         client.close()
         cluster.close()
 
+    # compute correlation matrix
+    postfit_corr_matrix_exp = fitter.compute_correlation_matrix(expected=True)
+    if args.with_observed:
+        postfit_corr_matrix_obs = fitter.compute_correlation_matrix(expected=False)
+
     # plot
     oned_styles = {
         "line": {
@@ -661,6 +686,20 @@ def main(args):
             f"{output_dir}/{poi}_{''.join(args.channels)}_{fit_model}_{args.suffix}.pdf"
         )
         plt.close(fig)
+    # plot matrices
+    print(postfit_corr_matrix_exp)
+    print_corr_matrix(
+        postfit_corr_matrix_exp,
+        pois,
+        f"{output_dir}/corr_matrix_postfit_exp_{''.join(args.channels)}_{fit_model}_{args.suffix}.png",
+    )
+    if args.with_observed:
+        print(postfit_corr_matrix_obs)
+        print_corr_matrix(
+            postfit_corr_matrix_obs,
+            pois,
+            f"{output_dir}/corr_matrix_postfit_obs_{''.join(args.channels)}_{fit_model}_{args.suffix}.png",
+        )
     if not args.skip2D:
         pois_pairs = list(combinations(pois, 2))
         for poi1, poi2 in pois_pairs:
