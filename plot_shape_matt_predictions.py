@@ -36,6 +36,11 @@ def parse_arguments():
         default="full",
         help="What type of model to fit",
     )
+    parser.add_argument(
+        "--add-uncertainty-bands",
+        action="store_true",
+        help="Add uncertainty bands to the plot",
+    )
 
     return parser.parse_args()
 
@@ -91,17 +96,37 @@ def mu(pois, coeff_prod, coeff_decay, coeff_tot, fit_model="full"):
         return prod * (decay / tot)
 
 
-def get_coeffs(poi, production_dct, decays_dct, channel):
+def get_coeffs(poi, production_dct, decays_dct, channel, plus=False, minus=False):
     dec = max_to_matt[channel]
     tot = "tot"
     decay_coeffs = [
         decays_dct[dec][f"A_{poi}"] if f"A_{poi}" in decays_dct[dec] else 0.0,
         decays_dct[dec][f"B_{poi}_2"] if f"B_{poi}_2" in decays_dct[dec] else 0.0,
     ]
+    if plus:
+        if f"u_A_{poi}" in decays_dct[dec]:
+            decay_coeffs[0] += decays_dct[dec][f"u_A_{poi}"]
+        if f"u_B_{poi}_2" in decays_dct[dec]:
+            decay_coeffs[1] += decays_dct[dec][f"u_B_{poi}_2"]
+    if minus:
+        if f"u_A_{poi}" in decays_dct[dec]:
+            decay_coeffs[0] -= decays_dct[dec][f"u_A_{poi}"]
+        if f"u_B_{poi}_2" in decays_dct[dec]:
+            decay_coeffs[1] -= decays_dct[dec][f"u_B_{poi}_2"]
     tot_coeffs = [
         decays_dct[tot][f"A_{poi}"] if f"A_{poi}" in decays_dct[tot] else 0.0,
         decays_dct[tot][f"B_{poi}_2"] if f"B_{poi}_2" in decays_dct[tot] else 0.0,
     ]
+    if plus:
+        if f"u_A_{poi}" in decays_dct[tot]:
+            tot_coeffs[0] += decays_dct[tot][f"u_A_{poi}"]
+        if f"u_B_{poi}_2" in decays_dct[tot]:
+            tot_coeffs[1] += decays_dct[tot][f"u_B_{poi}_2"]
+    if minus:
+        if f"u_A_{poi}" in decays_dct[tot]:
+            tot_coeffs[0] -= decays_dct[tot][f"u_A_{poi}"]
+        if f"u_B_{poi}_2" in decays_dct[tot]:
+            tot_coeffs[1] -= decays_dct[tot][f"u_B_{poi}_2"]
     production_coeffs = {}
     for k in production_dct:
         prod_coeff = [
@@ -110,6 +135,16 @@ def get_coeffs(poi, production_dct, decays_dct, channel):
             if f"B_{poi}_2" in production_dct[k]
             else 0.0,
         ]
+        if plus:
+            if f"u_A_{poi}" in production_dct[k]:
+                prod_coeff[0] += production_dct[k][f"u_A_{poi}"]
+            if f"u_B_{poi}_2" in production_dct[k]:
+                prod_coeff[1] += production_dct[k][f"u_B_{poi}_2"]
+        if minus:
+            if f"u_A_{poi}" in production_dct[k]:
+                prod_coeff[0] -= production_dct[k][f"u_A_{poi}"]
+            if f"u_B_{poi}_2" in production_dct[k]:
+                prod_coeff[1] -= production_dct[k][f"u_B_{poi}_2"]
         production_coeffs[k] = prod_coeff
 
     return production_coeffs, decay_coeffs, tot_coeffs
@@ -123,7 +158,7 @@ def main(args):
     decays_dct, production_dct, edges = refactor_predictions_multichannel(
         args.prediction_dir, args.channels
     )
-    print(production_dct)
+    # print(production_dct)
 
     bin_names = {}
     for k, v in production_dct.items():
@@ -220,7 +255,7 @@ def main(args):
         )
 
         # mplhep boilerplate
-        hep.cms.label(loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax)
+        hep.cms.label(loc=0, data=True, llabel="Internal", lumi=138, ax=ax)
         fig.savefig(
             f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_{args.fit_model}_1D.pdf"
         )
@@ -229,7 +264,9 @@ def main(args):
         )
         plt.close(fig)
 
+    # shapes
     if not args.skip_spectra:
+        colors = ("red", "blue", "green", "purple")
         for channel in args.channels:
             # plot one figure per POI with the spectrum
             print(f"Plotting spectra for channel {channel}...")
@@ -243,7 +280,15 @@ def main(args):
                 sm_prediction = get_prediction(obs, mass, weights)
                 sm_prediction = sm_prediction / hgg_br
 
+            # hbbvbf and httboost do not have first bin
+            if channel in ["hbbvbf", "httboost"]:
+                sm_prediction = sm_prediction[1:]
+            # for hbbvbf we do not have last bin prediction
+            if channel == "hbbvbf":
+                sm_prediction = sm_prediction[:-1]
+
             for poi in pois:
+                print(f"Plotting spectra for {poi} in channel {channel}...")
                 fig, ax = plt.subplots()
                 poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 4)
                 production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
@@ -276,35 +321,125 @@ def main(args):
                 for n, i in enumerate(poi_range):
                     hist = sm_prediction * mus_stack[:, n]
                     hist_ratio = hist / hist_ref
-                    print(f"Yields for {poi} = {i}: {list(hist)}")
-                    print(f"Mus for {poi} = {i}: {list(mus_stack[:, n])}")
+                    # print(f"Yields for {poi} = {i}: {list(hist)}")
+                    # print(f"Mus for {poi} = {i}: {list(mus_stack[:, n])}")
                     ax.stairs(
                         hist,
                         range(len(edges[channel])),
                         label="{} = {:.2f}".format(poi, i),
+                        color=colors[n],
                     )
                     rax.stairs(
                         hist_ratio,
                         range(len(edges[channel])),
                         label="{} = {:.2f}".format(poi, i),
+                        color=colors[n],
                     )
+                # add uncertainty bands if required
+                if args.add_uncertainty_bands:
+                    hists_up_down = {}
+                    hists_ratio_up_down = {}
+                    for string, up, down in zip(
+                        ["up", "down"], [True, False], [False, True]
+                    ):
+                        pcud, dcud, tcud = get_coeffs(
+                            poi,
+                            production_dct[channel],
+                            decays_dct,
+                            channel,
+                            plus=up,
+                            minus=down,
+                        )
+                        hists_up_down[string] = []
+                        hists_ratio_up_down[string] = []
+                        mus_up_down_stack = []
+                        mus_ref_up_down_stack = []
+                        for n, k in enumerate(production_coeffs):
+                            mus_up_down = mu(poi_range, pcud[k], dcud, tcud)
+                            mus_ref_up_down = mu(np.array(0), pcud[k], dcud, tcud)
+                            mus_up_down_stack.append(mus_up_down)
+                            mus_ref_up_down_stack.append(mus_ref_up_down)
+                        mus_up_down_stack = np.vstack(mus_up_down_stack)
+                        mus_ref_up_down_stack = np.vstack(mus_ref_up_down_stack)
+                        hist_up_down_ref = sm_prediction * mus_ref_up_down_stack[:, 0]
+                        for n, i in enumerate(poi_range):
+                            hist_up_down = sm_prediction * mus_up_down_stack[:, n]
+                            hist_ratio_up_down = hist_up_down / hist_up_down_ref
+                            hists_up_down[string].append(hist_up_down)
+                            hists_ratio_up_down[string].append(hist_ratio_up_down)
+                    for n, i in enumerate(poi_range):
+                        # che brutto lavoro porcoddio
+                        rng = range(len(edges[channel]))
+                        x_to_plot = []
+                        x_to_plot.append(rng[0])
+                        for i in rng[1:-1]:
+                            x_to_plot.append(i)
+                            x_to_plot.append(i)
+                        x_to_plot.append(rng[-1])
+                        hudd = hists_up_down["down"][n]
+                        huu = hists_up_down["up"][n]
+                        huddr = hists_ratio_up_down["down"][n]
+                        huur = hists_ratio_up_down["up"][n]
+                        hudd_to_plot = []
+                        for i in hudd:
+                            hudd_to_plot.append(i)
+                            hudd_to_plot.append(i)
+                        huu_to_plot = []
+                        for i in huu:
+                            huu_to_plot.append(i)
+                            huu_to_plot.append(i)
+                        huddr_to_plot = []
+                        for i in huddr:
+                            huddr_to_plot.append(i)
+                            huddr_to_plot.append(i)
+                        huur_to_plot = []
+                        for i in huur:
+                            huur_to_plot.append(i)
+                            huur_to_plot.append(i)
+
+                        # set all to 0 if negative
+                        hudd_to_plot = [max(0, i) for i in hudd_to_plot]
+                        huu_to_plot = [max(0, i) for i in huu_to_plot]
+                        huddr_to_plot = [max(0, i) for i in huddr_to_plot]
+                        huur_to_plot = [max(0, i) for i in huur_to_plot]
+
+                        ax.fill_between(
+                            x_to_plot,
+                            hudd_to_plot,
+                            huu_to_plot,
+                            color=colors[n],
+                            alpha=0.5,
+                        )
+                        rax.fill_between(
+                            x_to_plot,
+                            huddr_to_plot,
+                            huur_to_plot,
+                            color=colors[n],
+                            alpha=0.5,
+                        )
+
                 ax.legend(loc="lower left", prop={"size": 10}, ncol=1)
                 ax.set_yscale("log")
-                rax.set_xlabel("$p_{T}$")
+                rax.set_xlabel("$p_{T}^{H}$")
                 ax.set_ylabel("$\sigma_{SM} \cdot \mu$")
                 rax.set_ylabel("SMEFT/SM")
                 rax.set_xticks(range(len(edges[channel])))
-                rax.set_xticklabels(edges[channel])
+                lbs = edges[channel]
+                if lbs[-1] == 10000.0:
+                    lbs[-1] = "$\infty$"
+                rax.set_xticklabels(lbs)
                 ax.tick_params(axis="x", which="major", labelsize=10)
                 ax.tick_params(axis="x", which="minor", bottom=False, top=False)
                 rax.tick_params(axis="x", which="major", labelsize=10)
                 rax.tick_params(axis="x", which="minor", bottom=False, top=False)
                 rax.set_xlim(0, len(edges[channel]) - 1)
-                hep.cms.label(
-                    loc=0, data=True, llabel="Work in Progress", lumi=138, ax=ax
+                hep.cms.label(loc=0, data=True, llabel="Internal", lumi=138, ax=ax)
+                fig.savefig(
+                    f"{args.output_dir}/{poi}_{channel}_{args.fit_model}_spectrum.pdf"
                 )
-                fig.savefig(f"{args.output_dir}/{poi}_{channel}_spectrum.pdf")
-                fig.savefig(f"{args.output_dir}/{poi}_{channel}_spectrum.png")
+                fig.savefig(
+                    f"{args.output_dir}/{poi}_{channel}_{args.fit_model}_spectrum.png"
+                )
 
 
 if __name__ == "__main__":

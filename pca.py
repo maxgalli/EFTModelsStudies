@@ -176,7 +176,9 @@ def plot_rotation_matrix(
     )
 
 
-def plot_diag_fisher(C_inv_smeft_dct, wilson_coeffs, output_dir, suffix="", normalize_columns=False):
+def plot_diag_fisher(
+    C_inv_smeft_dct, wilson_coeffs, output_dir, suffix="", normalize_columns=False
+):
     # plot at page 34 here https://arxiv.org/pdf/2105.00006.pdf
     # input is a dictionary where every key is a channel and the value is a matrix
     channels = list(C_inv_smeft_dct.keys())
@@ -325,6 +327,8 @@ def main(args):
 
         # Build P
         lol = []
+        print(mus_dct[channel])
+        print(production_dct_of_dcts[channel].keys())
         for mu in mus_dct[channel]:
             row = []
             for wc in wilson_coeffs:
@@ -349,7 +353,13 @@ def main(args):
 
         C_smeft_inv_dct_local = {}
         C_smeft_inv_dct_local[channel] = C_smeft_inv_dct[channel]
-        plot_diag_fisher(C_smeft_inv_dct_local, wilson_coeffs, output_dir, suffix=f"-{args.how}-{channel}", normalize_columns=True)
+        plot_diag_fisher(
+            C_smeft_inv_dct_local,
+            wilson_coeffs,
+            output_dir,
+            suffix=f"-{args.how}-{channel}",
+            normalize_columns=True,
+        )
 
     # Before putting them togheter, plot diag_fisher
     plot_diag_fisher(C_smeft_inv_dct, wilson_coeffs, output_dir, suffix=f"-{args.how}")

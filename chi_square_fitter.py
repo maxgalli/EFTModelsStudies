@@ -491,6 +491,9 @@ def main(args):
     for channel in args.channels:
         with open(mus_paths[channel], "r") as f:
             mus_dct_of_dcts[channel] = json.load(f)
+        # hbbvbf does not have prediction in last bin, so we remove it
+        if channel == "hbbvbf":
+            mus_dct_of_dcts[channel].pop("r_smH_PTH_800_1200")
     logger.debug(f"Loaded mus {mus_dct_of_dcts}")
 
     corr_matrices_obs_dct = {}
@@ -501,6 +504,9 @@ def main(args):
             for key, value in dct.items():
                 list_of_lists.append(list(value.values()))
             corr_matrices_obs_dct[channel] = np.array(list_of_lists)
+        # remove last row and column in hbbvbf
+        if channel == "hbbvbf":
+            corr_matrices_obs_dct[channel] = corr_matrices_obs_dct[channel][:-1, :-1]
     logger.debug(f"Loaded corr_matrices_obs {corr_matrices_obs_dct}")
 
     corr_matrices_exp_dct = {}
@@ -511,6 +517,9 @@ def main(args):
             for key, value in dct.items():
                 list_of_lists.append(list(value.values()))
             corr_matrices_exp_dct[channel] = np.array(list_of_lists)
+        # remove last row and column in hbbvbf
+        if channel == "hbbvbf":
+            corr_matrices_exp_dct[channel] = corr_matrices_exp_dct[channel][:-1, :-1]
     logger.debug(f"Loaded corr_matrices_exp {corr_matrices_exp_dct}")
 
     with open(args.submodel_yaml) as f:

@@ -99,14 +99,15 @@ def refactor_predictions(prediction_dir, channel):
         production_dct["r_smH_PTH_GT600"] = key_dct
     elif channel == "hbbvbf":
         # this is we don't add manually 800 to the prediction JSON
-        # key_to_remove = "r_smH_PTH_675_10000"
-        # key_dct = production_dct[key_to_remove]
-        # production_dct.pop(key_to_remove)
-        # production_dct["r_smH_PTH_675_800"] = key_dct
-        key_to_remove = "r_smH_PTH_800_10000"
+        key_to_remove = "r_smH_PTH_675_10000"
         key_dct = production_dct[key_to_remove]
         production_dct.pop(key_to_remove)
-        production_dct["r_smH_PTH_800_1200"] = key_dct
+        production_dct["r_smH_PTH_675_800"] = key_dct
+        edges[-1] = 800.0
+        # key_to_remove = "r_smH_PTH_800_10000"
+        # key_dct = production_dct[key_to_remove]
+        # production_dct.pop(key_to_remove)
+        # production_dct["r_smH_PTH_800_1200"] = key_dct
 
     return decays_dct, production_dct, edges, sorted_keys
 
