@@ -50,11 +50,69 @@ def get_linearised_string(production_dct, decays_dct, pois, channel):
             start = "+" if coeff > 0 else ""
             poi_name = SMEFT_parameters_labels[poi]
             poi_name = poi_name.replace("$", "")
-            string += f"{start}{coeff_str} {poi_name}"
+            string += f"{start}{coeff_str} \cdot {poi_name}"
         if (i + 1) % 4 == 0 or i == len(pois) - 1:
             string = "$ " + string + " $"
             strings.append(string)
             string = ""
+    return strings
+
+
+def get_full_equation_part(dct, pois):
+    string = "1 "
+    strings = []
+    total = 0
+    for poi in pois:
+        look_for = f"A_{poi}"
+        if look_for in dct:
+            total += 1
+        look_for = f"B_{poi}_2"
+        if look_for in dct:
+            total += 1
+        for poi2 in pois:
+            look_for = f"B_{poi}_{poi2}"
+            if look_for in dct:
+                total += 1
+    cnt = 0
+    for poi in pois:
+        poi_name = SMEFT_parameters_labels[poi]
+        poi_name = poi_name.replace("$", "")
+        look_for = f"A_{poi}"
+        if look_for in dct:
+            coeff = dct[look_for]
+            coeff_str = f"{coeff:.3f}"
+            start = "+" if coeff > 0 else ""
+            string += f"{start} {coeff_str} \cdot {poi_name}"
+            cnt += 1
+            if cnt % 3 == 0 or cnt == total:
+                string = "$ " + string + " $"
+                strings.append(string)
+                string = ""
+        look_for = f"B_{poi}_2"
+        if look_for in dct:
+            coeff = dct[look_for]
+            coeff_str = f"{coeff:.3f}"
+            start = "+" if coeff > 0 else ""
+            string += f"{start} {coeff_str} \cdot {poi_name}^2"
+            cnt += 1
+            if cnt % 3 == 0 or cnt == total:
+                string = "$ " + string + " $"
+                strings.append(string)
+                string = ""
+        for poi2 in pois:
+            poi2_name = SMEFT_parameters_labels[poi2]
+            poi2_name = poi2_name.replace("$", "")
+            look_for = f"B_{poi}_{poi2}"
+            if look_for in dct:
+                coeff = dct[look_for]
+                coeff_str = f"{coeff:.3f}"
+                start = "+" if coeff > 0 else ""
+                string += f"{start} {coeff_str} \cdot {poi_name} \cdot {poi2_name}"
+                cnt += 1
+                if cnt % 3 == 0 or cnt == total:
+                    string = "$ " + string + " $"
+                    strings.append(string)
+                    string = ""
     return strings
 
 
@@ -91,12 +149,12 @@ def main(args):
         pois = list(dct.keys())
     logger.debug(f"POIs: {pois}")
 
-    if fit_model == "linearised":
-        table = LongTable("|l|l|")
-        table.add_hline()
-        table.add_row(("Bin", "Scalng equation"))
-        table.add_hline()
+    table = LongTable("l|l")
+    table.add_hline()
+    table.add_row(("Bin", "Scaling equation"))
+    table.add_hline()
 
+    if fit_model == "linearised":
         for channel in args.channels:
             production_dct = production_dct_of_dcts[channel]
             for bin in production_dct:
@@ -115,7 +173,48 @@ def main(args):
                         table.add_row(("", NoEscape(part)))
                 table.add_hline()
 
-        table.generate_tex(args.output)
+    elif fit_model == "full":
+        for channel in args.channels:
+            production_dct = production_dct_of_dcts[channel]
+            for bin in production_dct:
+                production_dct_bin = production_dct[bin]
+                bin_name = bin.replace("r_smH_PTH_", "")
+                bin_name = bin_name.replace("_", "-")
+                bin_name = f"{channel_tex[channel]}, {bin_name}"
+
+                scaling_equation_parts = get_full_equation_part(
+                    production_dct_bin, pois
+                )
+                for i, part in enumerate(scaling_equation_parts):
+                    if i == 0:
+                        table.add_row((NoEscape(bin_name), NoEscape(part)))
+                    else:
+                        table.add_row(("", NoEscape(part)))
+                table.add_hline()
+
+        for channel in args.channels:
+            decay_dct = decays_dct[max_to_matt[channel]]
+            bin_name = f"{channel_tex[channel]}, $\Gamma_i$"
+
+            scaling_equation_parts = get_full_equation_part(decay_dct, pois)
+            for i, part in enumerate(scaling_equation_parts):
+                if i == 0:
+                    table.add_row((NoEscape(bin_name), NoEscape(part)))
+                else:
+                    table.add_row(("", NoEscape(part)))
+            table.add_hline()
+
+        tot_dct = decays_dct["tot"]
+        bin_name = r"$\Gamma_{\mathrm{tot}}$"
+        scaling_equation_parts = get_full_equation_part(tot_dct, pois)
+        for i, part in enumerate(scaling_equation_parts):
+            if i == 0:
+                table.add_row((NoEscape(bin_name), NoEscape(part)))
+            else:
+                table.add_row(("", NoEscape(part)))
+        table.add_hline()
+
+    table.generate_tex(args.output)
 
 
 if __name__ == "__main__":
