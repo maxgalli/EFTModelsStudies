@@ -282,20 +282,32 @@ class EFTFitter:
 
             return m.covariance.correlation()
         else:
-            res = scipy_minimize(
-                fun=to_minimize,
-                x0=[v["val"] for v in params_to_float.values()],
-                method="TNC",
-                # method="SLSQP",
-                bounds=[(v["min"], v["max"]) for v in params_to_float.values()],
-            )
+            # res = scipy_minimize(
+            #    fun=to_minimize,
+            #    x0=[v["val"] for v in params_to_float.values()],
+            #    method="TNC",
+            #    # method="SLSQP",
+            #    bounds=[(v["min"], v["max"]) for v in params_to_float.values()],
+            # )
+
+            # ret = [
+            #    {"name": name, "value": value}
+            #    for name, value in zip(params_to_float, res.x)
+            # ]
+
+            m = Minuit(to_minimize, [v["val"] for v in params_to_float.values()])
+            m.limits = [(v["min"], v["max"]) for v in params_to_float.values()]
+            m.migrad()
+            m.hesse()
+            # print("Initial values: ", [v["val"] for v in params_to_float.values()])
+            # print(m.params)
+            # print(m.valid)
 
             ret = [
-                {"name": name, "value": value}
-                for name, value in zip(params_to_float, res.x)
+                {"name": name, "value": par.value}
+                for name, par in zip(params_to_float, m.params)
             ]
-
-        return ret
+            return ret
 
     def compute_correlation_matrix(self, expected=False):
         logging.info("Computing covariance matrix")
