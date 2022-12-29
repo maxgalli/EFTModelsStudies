@@ -1,3 +1,11 @@
+"""
+Example:
+python print_latex_equations.py 
+--prediction-dir /work/gallim/DifferentialCombination_home/EFTScalingEquations/equations/CMS-prelim-SMEFT-topU3l_22_05_05_rotated221220PruneNoCPhgghzzhwwhtthbbvbfhttboostA 
+--submodel-yaml /work/gallim/DifferentialCombination_home/DifferentialCombinationRun2/metadata/SMEFT/221220PruneNoCPEVhgghzzhwwhtthbbvbfhttboostLinearised.yml 
+--channels hgg hzz hww htt hbbvbf httboost --fit-model full --debug
+"""
+
 import argparse
 import yaml
 from pylatex import LongTable, NoEscape
@@ -122,7 +130,7 @@ channel_tex = {
     "hww": r"$H\rightarrow WW$",
     "htt": r"$H\rightarrow\tau\tau$",
     "hbbvbf": r"$H\rightarrow b\bar{b}$",
-    "httboost": r"$H\rightarrow\tau\tau \mathrm{boost.}$",
+    "httboost": r"$H\rightarrow\tau\tau\ \mathrm{boost}$",
 }
 
 
