@@ -21,6 +21,7 @@ from utils import (
     max_to_matt,
     ggH_production_files,
 )
+from print_latex_equations import channel_tex
 
 
 def parse_arguments():
@@ -169,11 +170,24 @@ def plot_rotation_matrix(
     # save
     logging.info(f"Saving PCA plot to {output_dir}")
     fig.savefig(
-        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.png"
+        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.png",
+        bbox_inches="tight",
     )
     fig.savefig(
-        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.pdf"
+        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.pdf",
+        bbox_inches="tight",
     )
+
+    # in case of full, dump dictionary with eigenvectors and WC components in the form
+    # {'EV0': {'chg': x, 'chw': x, ...}}
+    if full:
+        ev_dct = {}
+        for i, ev in enumerate(eigenvalues):
+            ev_dct[f"EV{i}"] = {}
+            for j, wc in enumerate(wilson_coeffs):
+                ev_dct[f"EV{i}"][wc] = rot[i, j]
+        with open(f"{output_dir}/PCA-{''.join(channels)}-Full{suffix}.json", "w") as f:
+            json.dump(ev_dct, f, indent=4)
 
 
 def plot_diag_fisher(
@@ -209,7 +223,7 @@ def plot_diag_fisher(
         ylabels = [SMEFT_parameters_labels[c] for c in wilson_coeffs]
     except KeyError:
         ylabels = wilson_coeffs
-    xlabels = [f"{c}" for c in channels]
+    xlabels = [f"{channel_tex[c]}" for c in channels]
 
     ax.set_xticks(np.arange(len(xlabels)), minor=False)
     ax.set_yticks(np.arange(len(ylabels)), minor=False)
@@ -222,8 +236,12 @@ def plot_diag_fisher(
 
     # save
     logging.info(f"Saving fisher information plot to {output_dir}")
-    fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}{suffix}.png")
-    fig.savefig(f"{output_dir}/diag_fisher-{''.join(channels)}{suffix}.pdf")
+    fig.savefig(
+        f"{output_dir}/diag_fisher-{''.join(channels)}{suffix}.png", bbox_inches="tight"
+    )
+    fig.savefig(
+        f"{output_dir}/diag_fisher-{''.join(channels)}{suffix}.pdf", bbox_inches="tight"
+    )
 
 
 def rotate_back(dct, rot, wilson_coeffs, ev_names=None):
@@ -363,6 +381,13 @@ def main(args):
 
     # Before putting them togheter, plot diag_fisher
     plot_diag_fisher(C_smeft_inv_dct, wilson_coeffs, output_dir, suffix=f"-{args.how}")
+    plot_diag_fisher(
+        C_smeft_inv_dct,
+        wilson_coeffs,
+        output_dir,
+        suffix=f"-{args.how}-normalize_columns",
+        normalize_columns=True,
+    )
 
     # Now attach them and proceed with PCA
     C_diff_inv = block_diag(
