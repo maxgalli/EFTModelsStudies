@@ -290,6 +290,7 @@ class EFTFitter:
                 self.mus,
                 self.production_coeffs_dict,
                 self.decay_coeffs_dict,
+                fit_model=self.fit_model,
             )
             return chi_square(y0, mus, y_err)
 
