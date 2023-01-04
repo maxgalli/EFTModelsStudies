@@ -13,6 +13,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from pathlib import Path
 from iminuit import Minuit
+import pickle as pkl
 
 matplotlib.use("AGG")
 import mplhep as hep
@@ -799,6 +800,13 @@ def main(args):
                 f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{fit_model}_{args.suffix}.pdf"
             )
             plt.close(fig)
+
+    # pickle results
+    with open(
+        f"outputs/results_{submodel_name}_{''.join(args.channels)}_{fit_model}.pkl",
+        "wb",
+    ) as f:
+        pkl.dump(results, f)
 
 
 if __name__ == "__main__":
