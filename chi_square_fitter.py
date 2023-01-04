@@ -32,6 +32,7 @@ from utils import (
     mus_paths,
     corr_matrices_observed,
     corr_matrices_expected,
+    cov_matrices_expected,
     print_corr_matrix,
 )
 from differential_combination_postprocess.utils import setup_logging
@@ -231,6 +232,8 @@ class EFTFitter:
         production_coeffs_dict,
         decay_coeffs_dict,
         fit_model="full",
+        obs_cova_matrix=None,
+        exp_cova_matrix=None,
     ):
         """
         """
@@ -254,8 +257,16 @@ class EFTFitter:
                 for mu in self.mus
             ]
         )
-        self.y_err = corr_to_cov(obs_correlation_matrix, y0_stdvs)
-        self.y_err_asimov = corr_to_cov(exp_correlation_matrix, y0_stdvs_asimov)
+        self.y_err = (
+            corr_to_cov(obs_correlation_matrix, y0_stdvs)
+            if obs_cova_matrix is None
+            else obs_cova_matrix
+        )
+        self.y_err_asimov = (
+            corr_to_cov(exp_correlation_matrix, y0_stdvs_asimov)
+            if exp_cova_matrix is None
+            else exp_cova_matrix
+        )
         logging.debug(f"Covariance matrix observed: {self.y_err}")
         logging.debug(f"Covariance matrix expected: {self.y_err_asimov}")
 
@@ -517,30 +528,25 @@ def main(args):
     logger.debug(f"Loaded mus {mus_dct_of_dcts}")
 
     corr_matrices_obs_dct = {}
-    for channel in args.channels:
-        with open(corr_matrices_observed[channel], "r") as f:
-            dct = json.load(f)
-            list_of_lists = []
-            for key, value in dct.items():
-                list_of_lists.append(list(value.values()))
-            corr_matrices_obs_dct[channel] = np.array(list_of_lists)
-        # remove last row and column in hbbvbf
-        if channel == "hbbvbf":
-            corr_matrices_obs_dct[channel] = corr_matrices_obs_dct[channel][:-1, :-1]
-    logger.debug(f"Loaded corr_matrices_obs {corr_matrices_obs_dct}")
-
     corr_matrices_exp_dct = {}
-    for channel in args.channels:
-        with open(corr_matrices_expected[channel], "r") as f:
-            dct = json.load(f)
-            list_of_lists = []
-            for key, value in dct.items():
-                list_of_lists.append(list(value.values()))
-            corr_matrices_exp_dct[channel] = np.array(list_of_lists)
-        # remove last row and column in hbbvbf
-        if channel == "hbbvbf":
-            corr_matrices_exp_dct[channel] = corr_matrices_exp_dct[channel][:-1, :-1]
+    cov_matrices_exp_dct = {}
+    for append_to, take_from in zip(
+        [corr_matrices_obs_dct, corr_matrices_exp_dct, cov_matrices_exp_dct],
+        [corr_matrices_observed, corr_matrices_expected, cov_matrices_expected],
+    ):
+        for channel in args.channels:
+            with open(take_from[channel], "r") as f:
+                dct = json.load(f)
+                list_of_lists = []
+                for key, value in dct.items():
+                    list_of_lists.append(list(value.values()))
+                append_to[channel] = np.array(list_of_lists)
+            # remove last row and column in hbbvbf
+            if channel == "hbbvbf":
+                append_to[channel] = append_to[channel][:-1, :-1]
+    logger.debug(f"Loaded corr_matrices_obs {corr_matrices_obs_dct}")
     logger.debug(f"Loaded corr_matrices_exp {corr_matrices_exp_dct}")
+    logger.debug(f"Loaded cov_matrices_exp {cov_matrices_exp_dct}")
 
     with open(args.submodel_yaml) as f:
         submodel_dict = yaml.load(f)
@@ -567,6 +573,9 @@ def main(args):
     corr_mat_exp = block_diag(
         [corr_matrices_exp_dct[channel] for channel in args.channels]
     ).toarray()
+    cov_matrices_exp = block_diag(
+        [cov_matrices_exp_dct[channel] for channel in args.channels]
+    ).toarray()
     production_dct = {}
     for channel in args.channels:
         dct = production_dct_of_dcts[channel]
@@ -586,6 +595,7 @@ def main(args):
         production_dct,
         decays_dct,
         fit_model,
+        exp_cova_matrix=cov_matrices_exp,
     )
 
     logger.info("First printing scaling equations")

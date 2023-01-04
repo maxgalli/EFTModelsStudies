@@ -47,16 +47,17 @@ def main(args):
 
     me = MatricesExtractor(pois)
     me.extract_from_roofitresult(args.input_file, "fit_mdf")
-    matrix_values = {}
-    for poi in pois:
-        matrix_values[poi] = {}
-    for pair, value in zip(
-        product(pois, repeat=2), me.matrices["rfr_correlation"].flatten()
-    ):
-        matrix_values[pair[0]][pair[1]] = float(value)
-    logger.info(f"Matrix values: {matrix_values}")
-    with open(f"{args.output_dir}/correlation_matrix.json", "w") as f:
-        json.dump(matrix_values, f, indent=4)
+    for matrix_name, output in zip(["rfr_correlation", "rfr_covariance"], ["correlation", "covariance"]):
+        matrix_values = {}
+        for poi in pois:
+            matrix_values[poi] = {}
+        for pair, value in zip(
+            product(pois, repeat=2), me.matrices[matrix_name].flatten()
+        ):
+            matrix_values[pair[0]][pair[1]] = float(value)
+        logger.info(f"Matrix values: {matrix_values}")
+        with open(f"{args.output_dir}/{output}_matrix.json", "w") as f:
+            json.dump(matrix_values, f, indent=4)
 
 
 if __name__ == "__main__":

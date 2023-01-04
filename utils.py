@@ -54,6 +54,14 @@ corr_matrices_expected = {
     "hbbvbf": "input/SMEFT/expected/HbbVBF/correlation_matrix.json",
     "httboost": "input/SMEFT/expected/HttBoost/correlation_matrix.json",
 }
+cov_matrices_expected = {
+    "hgg": "input/SMEFT/expected/Hgg/covariance_matrix.json",
+    "hzz": "input/SMEFT/expected/HZZ/covariance_matrix.json",
+    "htt": "input/SMEFT/expected/Htt/covariance_matrix.json",
+    "hww": "input/SMEFT/expected/HWW/covariance_matrix.json",
+    "hbbvbf": "input/SMEFT/expected/HbbVBF/covariance_matrix.json",
+    "httboost": "input/SMEFT/expected/HttBoost/covariance_matrix.json",
+}
 sm_prediction_files = {
     "hgg": "predictions/theoryPred_Pt_18_fullPS.pkl",
     "hzz": "predictions/theoryPred_Pt_18_fullPS_HZZ.pkl",
