@@ -37,6 +37,12 @@ from utils import (
 from differential_combination_postprocess.utils import setup_logging
 
 
+import warnings
+from iminuit.util import IMinuitWarning
+
+warnings.filterwarnings(action="ignore", category=IMinuitWarning)
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="")
 
@@ -250,6 +256,8 @@ class EFTFitter:
         )
         self.y_err = corr_to_cov(obs_correlation_matrix, y0_stdvs)
         self.y_err_asimov = corr_to_cov(exp_correlation_matrix, y0_stdvs_asimov)
+        logging.debug(f"Covariance matrix observed: {self.y_err}")
+        logging.debug(f"Covariance matrix expected: {self.y_err_asimov}")
 
     def minimize(self, params_to_float, params_to_freeze, y0, y_err, return_corr=False):
         """

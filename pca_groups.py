@@ -161,7 +161,7 @@ def main(args):
             args.channels,
             output_dir,
             full=is_full,
-            suffix="-groups",
+            suffix=f"-groups-{'_'.join(submodel_names)}",
             ev_names=ev_names,
         )
 
