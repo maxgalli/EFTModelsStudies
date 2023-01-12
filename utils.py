@@ -1,6 +1,9 @@
 import numpy as np
 import json
 import matplotlib.pyplot as plt
+import mplhep as hep
+
+hep.style.use("CMS")
 
 
 robusthesse_paths = {
@@ -10,6 +13,15 @@ robusthesse_paths = {
     "hww": "input/SMEFT/expected/HWW/robustHesse_POSTFIT_HWW.root",
     "hbbvbf": "input/SMEFT/expected/HbbVBF/robustHesse_POSTFIT_HbbVBF.root",
     "httboost": "input/SMEFT/expected/HttBoost/robustHesse_POSTFIT_HttBoost.root",
+}
+
+robusthesse_statonly_paths = {
+    "hgg": "input/SMEFT/expected_statonly/Hgg/robustHesseAsimovBestFit.root",
+    "hzz": "input/SMEFT/expected_statonly/HZZ/robustHesse_POSTFIT_HZZ.root",
+    "htt": "input/SMEFT/expected_statonly/Htt/robustHesseTest.root",
+    "hww": "input/SMEFT/expected_statonly/HWW/robustHesse_POSTFIT_HWW.root",
+    "hbbvbf": "input/SMEFT/expected_statonly/HbbVBF/robustHesse_POSTFIT_HbbVBF.root",
+    "httboost": "input/SMEFT/expected_statonly/HttBoost/robustHesse_POSTFIT_HttBoost.root",
 }
 
 ggH_production_files = {
@@ -132,25 +144,42 @@ def refactor_predictions_multichannel(prediction_dir, channels):
 
 def print_corr_matrix(matrix, coefficients, output_name):
     fig, ax = plt.subplots()
+    number_size = 130 / len(coefficients)
+    letter_size = 200 / len(coefficients) if len(coefficients) > 8 else 20
     cmap = plt.get_cmap("bwr")
     cax = ax.matshow(matrix, cmap=cmap, vmin=-1, vmax=1)
-    cbar = plt.colorbar(cax)
+    cbar = plt.colorbar(cax, fraction=0.047, pad=0.01)
+    cbar.ax.tick_params(labelsize=letter_size)
 
     for i in range(len(matrix)):
         for j in range(len(matrix)):
             c = matrix[j, i]
             ax.text(
-                i, j, str("{:.4f}".format(c)), va="center", ha="center", fontsize=12
+                i,
+                j,
+                str("{:.4f}".format(c)),
+                va="center",
+                ha="center",
+                fontsize=number_size,
             )
 
     labels = coefficients
     ax.set_xticks(np.arange(len(matrix)), minor=False)
     ax.set_yticks(np.arange(len(matrix)), minor=False)
-    ax.set_xticklabels(labels, rotation=45, fontsize=12)
-    ax.set_yticklabels(labels, rotation=45, fontsize=12)
-    ax.tick_params(axis="x", which="both", bottom=False, top=False)
+    ax.set_xticklabels(labels, rotation=45, fontsize=letter_size)
+    ax.set_yticklabels(labels, fontsize=letter_size)
+    ax.tick_params(
+        axis="x",
+        which="both",
+        bottom=False,
+        labelbottom=True,
+        top=False,
+        labeltop=False,
+    )
     ax.tick_params(axis="y", which="both", left=False, right=False)
 
     # save
+    hep.cms.label(loc=0, data=True, llabel="Internal", lumi=138, ax=ax)
+    fig.tight_layout()
     fig.savefig(f"{output_name}.png")
     fig.savefig(f"{output_name}.pdf")

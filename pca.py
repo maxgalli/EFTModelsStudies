@@ -18,6 +18,7 @@ from differential_combination_postprocess.cosmetics import SMEFT_parameters_labe
 from utils import (
     refactor_predictions_multichannel,
     robusthesse_paths,
+    robusthesse_statonly_paths,
     max_to_matt,
     ggH_production_files,
 )
@@ -44,6 +45,13 @@ def parse_arguments():
         choices=["A", "AB"],
         default="A",
         help="Whether include Bs or not when computing P",
+    )
+
+    parser.add_argument(
+        "--statonly",
+        action="store_true",
+        help="Whether to use robusthesse statonly matrix or not",
+        default=False,
     )
 
     return parser.parse_args()
@@ -330,6 +338,8 @@ def main(args):
     output_dir = os.path.join(
         args.output_dir, args.prediction_dir.split("/")[-1] + "-" + model_name
     )
+    if args.statonly:
+        output_dir += "-statonly"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     for channel in args.channels:
@@ -337,7 +347,11 @@ def main(args):
         # Build C_diff
         # c_diff = np.random.rand(len(production_dct), len(production_dct)) # debug
         me = MatricesExtractor(mus_dct[channel])
-        me.extract_from_robusthesse(robusthesse_paths[channel])
+        me.extract_from_robusthesse(
+            robusthesse_statonly_paths[channel]
+            if args.statonly
+            else robusthesse_paths[channel]
+        )
         C_diff = me.matrices["hessian_covariance"]
         logger.debug(f"C_diff shape {C_diff.shape}")
         C_diff_inv_dct[channel] = linalg.inv(C_diff)
@@ -441,6 +455,8 @@ def main(args):
     base_output_dir = (
         f"{args.prediction_dir}_rotated{model_name}{''.join(args.channels)}{args.how}"
     )
+    if args.statonly:
+        base_output_dir += "statonly"
     for channel in args.channels:
         mus = mus_dct[channel]
         production_dct = production_dct_of_dcts[channel]
