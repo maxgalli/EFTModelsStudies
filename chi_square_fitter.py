@@ -53,7 +53,10 @@ def parse_arguments():
     parser.add_argument("--submodel-yaml", type=str, required=True, help="")
 
     parser.add_argument(
-        "--channels", nargs="+", type=str, required=True, default=[], help=""
+        "--config",
+        type=str,
+        required=True,
+        help="JSON file containing a dictionary channl:observable",
     )
 
     parser.add_argument("--output-dir", type=str, required=True, help="")
@@ -491,6 +494,9 @@ def main(args):
     # os.makedirs(args.output_dir, exist_ok=True)
 
     fit_model = args.fit_model
+    with open(args.config) as f:
+        config = json.load(f)
+    config_name = args.config.split("/")[-1].split(".")[0]
 
     multiple_workers = False
     if args.multiprocess:
@@ -521,11 +527,11 @@ def main(args):
         client.wait_for_workers(10)
 
     mus_dct_of_dcts = {}
-    for channel in args.channels:
-        with open(mus_paths[channel], "r") as f:
+    for channel, observable in config.items():
+        with open(mus_paths[observable][channel], "r") as f:
             mus_dct_of_dcts[channel] = json.load(f)
         # hbbvbf does not have prediction in last bin, so we remove it
-        if channel == "hbbvbf":
+        if channel == "hbbvbf" and observable == "smH_PTH":
             mus_dct_of_dcts[channel].pop("r_smH_PTH_800_1200")
     logger.debug(f"Loaded mus {mus_dct_of_dcts}")
 
@@ -536,15 +542,15 @@ def main(args):
         [corr_matrices_obs_dct, corr_matrices_exp_dct, cov_matrices_exp_dct],
         [corr_matrices_observed, corr_matrices_expected, cov_matrices_expected],
     ):
-        for channel in args.channels:
-            with open(take_from[channel], "r") as f:
+        for channel, observable in config.items():
+            with open(take_from[observable][channel], "r") as f:
                 dct = json.load(f)
                 list_of_lists = []
                 for key, value in dct.items():
                     list_of_lists.append(list(value.values()))
                 append_to[channel] = np.array(list_of_lists)
             # remove last row and column in hbbvbf
-            if channel == "hbbvbf":
+            if channel == "hbbvbf" and observable == "smH_PTH":
                 append_to[channel] = append_to[channel][:-1, :-1]
     logger.debug(f"Loaded corr_matrices_obs {corr_matrices_obs_dct}")
     logger.debug(f"Loaded corr_matrices_exp {corr_matrices_exp_dct}")
@@ -554,7 +560,7 @@ def main(args):
         submodel_dict = yaml.load(f)
     submodel_name = args.submodel_yaml.split("/")[-1].split(".")[0]
     decays_dct, production_dct_of_dcts, edges_dct = refactor_predictions_multichannel(
-        args.prediction_dir, args.channels
+        args.prediction_dir, config
     )
     logger.debug(f"production_dct: {production_dct_of_dcts}")
     logger.debug(f"production_dct keys: {list(production_dct_of_dcts.keys())}")
@@ -565,21 +571,21 @@ def main(args):
 
     # Now refactor in order to make everything work in EFTFitter
     mus_dict = {}
-    for channel in args.channels:
+    for channel in config.keys():
         dct = mus_dct_of_dcts[channel]
         for poi in dct:
             mus_dict[f"{poi}_{channel}"] = dct[poi]
     corr_mat_obs = block_diag(
-        [corr_matrices_obs_dct[channel] for channel in args.channels]
+        [corr_matrices_obs_dct[channel] for channel in config.keys()]
     ).toarray()
     corr_mat_exp = block_diag(
-        [corr_matrices_exp_dct[channel] for channel in args.channels]
+        [corr_matrices_exp_dct[channel] for channel in config.keys()]
     ).toarray()
     cov_matrices_exp = block_diag(
-        [cov_matrices_exp_dct[channel] for channel in args.channels]
+        [cov_matrices_exp_dct[channel] for channel in config.keys()]
     ).toarray()
     production_dct = {}
-    for channel in args.channels:
+    for channel in config.keys():
         dct = production_dct_of_dcts[channel]
         for poi in dct:
             production_dct[f"{poi}_{channel}"] = dct[poi]
@@ -720,26 +726,22 @@ def main(args):
         ax.axhline(y=4, color="black", linestyle="dashed")
         ax.legend()
         logger.info(f"Saving plots for poi {poi}")
-        fig.savefig(
-            f"{output_dir}/{poi}_{''.join(args.channels)}_{fit_model}_{args.suffix}.png"
-        )
-        fig.savefig(
-            f"{output_dir}/{poi}_{''.join(args.channels)}_{fit_model}_{args.suffix}.pdf"
-        )
+        fig.savefig(f"{output_dir}/{poi}_{config_name}_{fit_model}_{args.suffix}.png")
+        fig.savefig(f"{output_dir}/{poi}_{config_name}_{fit_model}_{args.suffix}.pdf")
         plt.close(fig)
     # plot matrices
     print(postfit_corr_matrix_exp)
     print_corr_matrix(
         postfit_corr_matrix_exp,
         pois,
-        f"{output_dir}/corr_matrix_postfit_exp_{''.join(args.channels)}_{fit_model}_{args.suffix}.png",
+        f"{output_dir}/corr_matrix_postfit_exp_{config_name}_{fit_model}_{args.suffix}.png",
     )
     if args.with_observed:
         print(postfit_corr_matrix_obs)
         print_corr_matrix(
             postfit_corr_matrix_obs,
             pois,
-            f"{output_dir}/corr_matrix_postfit_obs_{''.join(args.channels)}_{fit_model}_{args.suffix}.png",
+            f"{output_dir}/corr_matrix_postfit_obs_{config_name}_{fit_model}_{args.suffix}.png",
         )
     if not args.skip2D:
         pois_pairs = list(combinations(pois, 2))
@@ -794,17 +796,16 @@ def main(args):
             ax.legend()
             logger.info(f"Saving plots for pois {poi1} vs {poi2}")
             fig.savefig(
-                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{fit_model}_{args.suffix}.png"
+                f"{output_dir}/{poi1}-{poi2}_{config_name}_{fit_model}_{args.suffix}.png"
             )
             fig.savefig(
-                f"{output_dir}/{poi1}-{poi2}_{''.join(args.channels)}_{fit_model}_{args.suffix}.pdf"
+                f"{output_dir}/{poi1}-{poi2}_{config_name}_{fit_model}_{args.suffix}.pdf"
             )
             plt.close(fig)
 
     # pickle results
     with open(
-        f"outputs/results_{submodel_name}_{''.join(args.channels)}_{fit_model}.pkl",
-        "wb",
+        f"outputs/results_{submodel_name}_{config_name}_{fit_model}.pkl", "wb"
     ) as f:
         pkl.dump(results, f)
 

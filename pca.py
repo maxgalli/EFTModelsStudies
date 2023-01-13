@@ -33,7 +33,10 @@ def parse_arguments():
     parser.add_argument("--model-yaml", type=str, required=True, help="")
 
     parser.add_argument(
-        "--channels", nargs="+", type=str, required=True, default=[], help=""
+        "--config",
+        type=str,
+        required=True,
+        help="JSON file containing a dictionary channl:observable",
     )
 
     parser.add_argument("--output-dir", type=str, required=True, help="")
@@ -318,14 +321,17 @@ def main(args):
     with open(args.model_yaml, "r") as f:
         model = yaml.safe_load(f)
     wilson_coeffs = list(model.keys())
+    with open(args.config, "r") as f:
+        config = json.load(f)
+    config_name = args.config.split("/")[-1].split(".")[0]
     decays_dct, production_dct_of_dcts, edges_dct = refactor_predictions_multichannel(
-        args.prediction_dir, args.channels
+        args.prediction_dir, config
     )
     logger.debug(f"decays_dct {decays_dct}")
     logger.debug(f"production_dct {production_dct_of_dcts}")
     logger.debug(f"edges {edges_dct}")
     mus_dct = {}
-    for channel in args.channels:
+    for channel in config.keys():
         mus_dct[channel] = list(production_dct_of_dcts[channel].keys())
     logger.debug(f"Found mus {mus_dct}")
 
@@ -336,21 +342,22 @@ def main(args):
 
     model_name = args.model_yaml.split("/")[-1].split(".")[0]
     output_dir = os.path.join(
-        args.output_dir, args.prediction_dir.split("/")[-1] + "-" + model_name
+        args.output_dir,
+        args.prediction_dir.split("/")[-1] + "-" + model_name + "-" + config_name,
     )
     if args.statonly:
         output_dir += "-statonly"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    for channel in args.channels:
+    for channel, observable in config.items():
         logger.info(f"Processing channel {channel} for C_diff_inv, P, C_smeft_inv")
         # Build C_diff
         # c_diff = np.random.rand(len(production_dct), len(production_dct)) # debug
         me = MatricesExtractor(mus_dct[channel])
         me.extract_from_robusthesse(
-            robusthesse_statonly_paths[channel]
+            robusthesse_statonly_paths[observable][channel]
             if args.statonly
-            else robusthesse_paths[channel]
+            else robusthesse_paths[observable][channel]
         )
         C_diff = me.matrices["hessian_covariance"]
         logger.debug(f"C_diff shape {C_diff.shape}")
@@ -405,10 +412,10 @@ def main(args):
 
     # Now attach them and proceed with PCA
     C_diff_inv = block_diag(
-        [C_diff_inv_dct[channel] for channel in args.channels]
+        [C_diff_inv_dct[channel] for channel in config.keys()]
     ).toarray()
     # concatenate Ps along y
-    P = np.concatenate([P_dct[channel] for channel in args.channels], axis=0)
+    P = np.concatenate([P_dct[channel] for channel in config.keys()], axis=0)
     logger.debug(f"Concatenated P shape {P.shape}")
 
     # eigenvalue decomposition
@@ -440,24 +447,24 @@ def main(args):
     # l = np.array([3, 2, 0.00001])
     # wilson_coeffs = ["C7", "C8", "C9"]
     plot_rotation_matrix(
-        rot, l, wilson_coeffs, args.channels, output_dir, suffix=f"-{args.how}"
+        rot, l, wilson_coeffs, list(config.keys()), output_dir, suffix=f"-{args.how}"
     )
     plot_rotation_matrix(
         rot,
         l,
         wilson_coeffs,
-        args.channels,
+        list(config.keys()),
         output_dir,
         full=True,
         suffix=f"-{args.how}",
     )
 
     base_output_dir = (
-        f"{args.prediction_dir}_rotated{model_name}{''.join(args.channels)}{args.how}"
+        f"{args.prediction_dir}_rotated{model_name}{config_name}{args.how}"
     )
     if args.statonly:
         base_output_dir += "statonly"
-    for channel in args.channels:
+    for channel, observable in config.items():
         mus = mus_dct[channel]
         production_dct = production_dct_of_dcts[channel]
         edges = edges_dct[channel]
@@ -477,14 +484,14 @@ def main(args):
         logger.info(f"Created output directory {channel_output_dir}")
 
         # dump production
-        file_name = ggH_production_files[channel].split("/")[-1]
+        file_name = ggH_production_files[observable][channel].split("/")[-1]
         with open(f"{channel_output_dir}/{file_name}", "w") as f:
             json.dump(production_dct_rot, f, indent=4)
         logger.info(f"Dumped rotated production to {channel_output_dir}/{file_name}")
 
     # dump decay
     decays_dct_rot = {}
-    for dec in [*[max_to_matt[c] for c in args.channels], "tot"]:
+    for dec in [*[max_to_matt[c] for c in list(config.keys())], "tot"]:
         decays_dct_rot[dec] = rotate_back(decays_dct[dec], rot, wilson_coeffs)
     logger.info(f"Rotated decays dct: {decays_dct_rot}")
 

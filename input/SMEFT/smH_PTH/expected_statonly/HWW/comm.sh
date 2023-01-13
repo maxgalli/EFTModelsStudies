@@ -1,0 +1,1 @@
+combine /work/gallim/DifferentialCombination_home/DifferentialCombinationRun2/CombinedWorkspaces/SM/smH_PTH/HWW.root --name _POSTFIT_HWW -m 125.38 -M MultiDimFit --algo=singles --X-rtd MINIMIZER_analytic --saveWorkspace --cminDefaultMinimizerStrategy 0 --toys -1 --saveFitResult --freezeParameters allConstrainedNuisances --robustHesse 1 --robustFit 1

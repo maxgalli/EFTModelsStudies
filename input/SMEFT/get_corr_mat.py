@@ -24,6 +24,14 @@ def parse_arguments():
     )
 
     parser.add_argument(
+        "--observable",
+        type=str,
+        required=True,
+        help="Observable to be used",
+        choices=all_pois.keys(),
+    )
+
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="outputs",
@@ -43,11 +51,13 @@ def main(args):
     else:
         logger = setup_logging(level="INFO")
 
-    pois = all_pois[args.channel]
+    pois = all_pois[args.observable][args.channel]
 
     me = MatricesExtractor(pois)
     me.extract_from_roofitresult(args.input_file, "fit_mdf")
-    for matrix_name, output in zip(["rfr_correlation", "rfr_covariance"], ["correlation", "covariance"]):
+    for matrix_name, output in zip(
+        ["rfr_correlation", "rfr_covariance"], ["correlation", "covariance"]
+    ):
         matrix_values = {}
         for poi in pois:
             matrix_values[poi] = {}
