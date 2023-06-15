@@ -193,11 +193,18 @@ def get_mu_prediction(pois, mus, production_dct, decays_dct, fit_model="full"):
     pois is a list of dicts with shape {'name': name, 'value': value}
     """
     pred_mus = []
+    with open("tries/hzz_temp.json", "r") as f:
+        # with open("tries/hww_temp.json", "r") as f:
+        ddd = json.load(f)
     for mu in mus:
         channel = mu.split("_")[-1]
         channel = max_to_matt[channel]
         prod_term = extract_coeffs(pois, production_dct[mu], fit_model=fit_model)
-        br_num = extract_coeffs(pois, decays_dct[channel], fit_model=fit_model)
+        if channel in ["hww", "hzz"]:
+            br_num = extract_coeffs(pois, ddd[mu], fit_model=fit_model)
+        else:
+            br_num = extract_coeffs(pois, decays_dct[channel], fit_model=fit_model)
+        # br_num = extract_coeffs(pois, decays_dct[channel], fit_model=fit_model)
         br_den = extract_coeffs(pois, decays_dct["tot"], fit_model=fit_model)
         if fit_model == "linearised":
             pred_mus.append(1 + prod_term + br_num - br_den)
@@ -209,11 +216,21 @@ def get_mu_prediction(pois, mus, production_dct, decays_dct, fit_model="full"):
 
 def get_mu_prediction_string(pois, mus, production_dct, decays_dct, fit_model="full"):
     pred_mus = {}
+    with open("tries/hzz_temp.json", "r") as f:
+        # with open("tries/hww_temp.json", "r") as f:
+        ddd = json.load(f)
+
     for mu in mus:
         channel = mu.split("_")[-1]
         channel = max_to_matt[channel]
         prod_term = extract_coeffs_string(pois, production_dct[mu], fit_model=fit_model)
-        br_num = extract_coeffs_string(pois, decays_dct[channel], fit_model=fit_model)
+        if channel in ["hww", "hzz"]:
+            br_num = extract_coeffs_string(pois, ddd[mu], fit_model=fit_model)
+        else:
+            br_num = extract_coeffs_string(
+                pois, decays_dct[channel], fit_model=fit_model
+            )
+        # br_num = extract_coeffs_string(pois, decays_dct[channel], fit_model=fit_model)
         br_den = extract_coeffs_string(pois, decays_dct["tot"], fit_model=fit_model)
         if fit_model == "linearised":
             pred_mus[mu] = "1 + {} + {} - ({})".format(prod_term, br_num, br_den)
@@ -239,8 +256,7 @@ class EFTFitter:
         obs_cova_matrix=None,
         exp_cova_matrix=None,
     ):
-        """
-        """
+        """ """
         self.mus = list(mus_dict.keys())
         self.pois_dict = submodel_dict
         self.production_coeffs_dict = production_coeffs_dict
@@ -609,6 +625,7 @@ def main(args):
     logger.info("First printing scaling equations")
     fitter.print_scaling_equations()
 
+    pois = list(submodel_dict.keys())
     results = {}
     results["expected_fixed"] = fitter.scan(how="fixed", expected=True)
     if not args.skip2D:
@@ -616,9 +633,10 @@ def main(args):
             **results["expected_fixed"],
             **fitter.scan2D(how="fixed", expected=True),
         }
-    results["expected_profiled"] = fitter.scan(
-        how="profiled", expected=True, points=150, multiprocess=multiple_workers
-    )
+    if len(pois) > 1:
+        results["expected_profiled"] = fitter.scan(
+            how="profiled", expected=True, points=150, multiprocess=multiple_workers
+        )
     if not args.skip2D:
         results["expected_profiled"] = {
             **results["expected_profiled"],
@@ -701,7 +719,6 @@ def main(args):
         "observed_fixed": {"color": "red"},
         "observed_profiled": {"color": "orange"},
     }
-    pois = list(submodel_dict.keys())
     for poi in pois:
         fig, ax = plt.subplots()
         for result_name, result in results.items():
@@ -805,7 +822,8 @@ def main(args):
 
     # pickle results
     with open(
-        f"outputs/results_{submodel_name}_{config_name}_{fit_model}.pkl", "wb"
+        f"outputs/results_{submodel_name}_{config_name}_{fit_model}{args.suffix}.pkl",
+        "wb",
     ) as f:
         pkl.dump(results, f)
 
