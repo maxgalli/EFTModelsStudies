@@ -156,7 +156,7 @@ def main(args):
     pois = list(pois_dct.keys())
 
     decays_dct, production_dct, edges = refactor_predictions_multichannel(
-        args.prediction_dir, args.channels
+        args.prediction_dir, {channel: "smH_PTH" for channel in args.channels}
     )
     # print(production_dct)
 
@@ -240,19 +240,20 @@ def main(args):
                     linestyle=channel_linestyles[channel],
                     color=channel_colors[channel][n],
                 )
-        ax.legend(loc="upper center", prop={"size": 10}, ncol=4)
         ax.set_xlabel(poi)
         ax.set_ylabel("$\mu$")
-        ax.plot(0, 1, marker="P", color="grey", markersize=8)
-        ax.text(
-            0.05,
-            0.95,
-            "$\sigma_{SM}$",
-            va="center",
-            ha="center",
-            fontsize=10,
-            color="grey",
-        )
+        ax.plot(0, 1, marker="P", color="grey", markersize=8, label="SM")
+        ax.legend(loc="upper center", prop={"size": 10}, ncol=4)
+        ax.set_xlim(pois_dct[poi]["min"], pois_dct[poi]["max"])
+        # ax.text(
+        #    0.05,
+        #    0.95,
+        #    "$\sigma_{SM}$",
+        #    va="center",
+        #    ha="center",
+        #    fontsize=10,
+        #    color="grey",
+        # )
 
         # mplhep boilerplate
         hep.cms.label(loc=0, data=True, llabel="Internal", lumi=138, ax=ax)
@@ -300,9 +301,19 @@ def main(args):
                 mus_stack = []
                 mus_ref_stack = []
                 for n, k in enumerate(production_coeffs):
-                    mus = mu(poi_range, production_coeffs[k], decay_coeffs, tot_coeffs)
+                    mus = mu(
+                        poi_range,
+                        production_coeffs[k],
+                        decay_coeffs,
+                        tot_coeffs,
+                        fit_model=args.fit_model,
+                    )
                     mus_ref = mu(
-                        np.array(0), production_coeffs[k], decay_coeffs, tot_coeffs
+                        np.array(0),
+                        production_coeffs[k],
+                        decay_coeffs,
+                        tot_coeffs,
+                        fit_model=args.fit_model,
                     )
                     mus_stack.append(mus)
                     mus_ref_stack.append(mus_ref)
@@ -337,6 +348,7 @@ def main(args):
                     )
                 # add uncertainty bands if required
                 if args.add_uncertainty_bands:
+                    print("Adding uncertainty bands...")
                     hists_up_down = {}
                     hists_ratio_up_down = {}
                     for string, up, down in zip(
@@ -355,8 +367,16 @@ def main(args):
                         mus_up_down_stack = []
                         mus_ref_up_down_stack = []
                         for n, k in enumerate(production_coeffs):
-                            mus_up_down = mu(poi_range, pcud[k], dcud, tcud)
-                            mus_ref_up_down = mu(np.array(0), pcud[k], dcud, tcud)
+                            mus_up_down = mu(
+                                poi_range, pcud[k], dcud, tcud, fit_model=args.fit_model
+                            )
+                            mus_ref_up_down = mu(
+                                np.array(0),
+                                pcud[k],
+                                dcud,
+                                tcud,
+                                fit_model=args.fit_model,
+                            )
                             mus_up_down_stack.append(mus_up_down)
                             mus_ref_up_down_stack.append(mus_ref_up_down)
                         mus_up_down_stack = np.vstack(mus_up_down_stack)

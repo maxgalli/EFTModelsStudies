@@ -20,7 +20,8 @@ from utils import (
     robusthesse_paths,
     robusthesse_statonly_paths,
     max_to_matt,
-    ggH_production_files,
+    # ggH_production_files,
+    full_production_files,
 )
 from print_latex_equations import channel_tex
 
@@ -484,7 +485,8 @@ def main(args):
         logger.info(f"Created output directory {channel_output_dir}")
 
         # dump production
-        file_name = ggH_production_files[observable][channel].split("/")[-1]
+        # file_name = ggH_production_files[observable][channel].split("/")[-1]
+        file_name = full_production_files[observable][channel].split("/")[-1]
         with open(f"{channel_output_dir}/{file_name}", "w") as f:
             json.dump(production_dct_rot, f, indent=4)
         logger.info(f"Dumped rotated production to {channel_output_dir}/{file_name}")

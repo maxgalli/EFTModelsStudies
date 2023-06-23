@@ -8,6 +8,7 @@ python print_latex_equations.py
 
 import argparse
 import yaml
+import json
 from pylatex import LongTable, NoEscape
 from utils import refactor_predictions_multichannel, max_to_matt
 from differential_combination_postprocess.utils import setup_logging
@@ -21,9 +22,7 @@ def parse_arguments():
 
     parser.add_argument("--submodel-yaml", type=str, required=True, help="")
 
-    parser.add_argument(
-        "--channels", nargs="+", type=str, required=True, default=[], help=""
-    )
+    parser.add_argument("--config", type=str, required=True, help="")
 
     parser.add_argument("--output", type=str, default="equations", help="")
 
@@ -142,8 +141,10 @@ def main(args):
 
     fit_model = args.fit_model
 
+    with open(args.config, "r") as f:
+        config = json.load(f)
     decays_dct, production_dct_of_dcts, edges_dct = refactor_predictions_multichannel(
-        args.prediction_dir, args.channels
+        args.prediction_dir, config
     )
     logger.debug(f"production_dct_of_dcts keys: {list(production_dct_of_dcts.keys())}")
     for k in production_dct_of_dcts.keys():
@@ -163,7 +164,7 @@ def main(args):
     table.add_hline()
 
     if fit_model == "linearised":
-        for channel in args.channels:
+        for channel, obs in config.items():
             production_dct = production_dct_of_dcts[channel]
             for bin in production_dct:
                 production_dct_bin = production_dct[bin]
@@ -182,12 +183,15 @@ def main(args):
                 table.add_hline()
 
     elif fit_model == "full":
-        for channel in args.channels:
+        for channel, obs in config.items():
             production_dct = production_dct_of_dcts[channel]
             for bin in production_dct:
                 production_dct_bin = production_dct[bin]
-                bin_name = bin.replace("r_smH_PTH_", "")
-                bin_name = bin_name.replace("_", "-")
+                bin_name = bin.replace("r_smH_PTH_", "").replace("r_DeltaPhiJJ_", "")
+                if obs == "smH_PTH":
+                    bin_name = bin_name.replace("_", "-")
+                elif obs == "DeltaPhiJJ":
+                    bin_name = bin_name.replace("_", ", ")
                 bin_name = f"{channel_tex[channel]}, {bin_name}"
 
                 scaling_equation_parts = get_full_equation_part(
@@ -200,7 +204,7 @@ def main(args):
                         table.add_row(("", NoEscape(part)))
                 table.add_hline()
 
-        for channel in args.channels:
+        for channel, obs in config.items():
             decay_dct = decays_dct[max_to_matt[channel]]
             bin_name = f"{channel_tex[channel]}, $\Gamma_i$"
 

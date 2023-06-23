@@ -16,6 +16,7 @@ robusthesse_paths = {
         "httboost": "input/SMEFT/smH_PTH/expected/HttBoost/robustHesse_POSTFIT_HttBoost.root",
     },
     "Njets": {
+        "hgg": "input/SMEFT/Njets/expected/Hgg/robustHesse_POSTFIT_Hgg.root",
         "hzz": "input/SMEFT/Njets/expected/HZZ/robustHesse_POSTFIT_HZZ.root",
         "htt": "input/SMEFT/Njets/expected/Htt/robustHesseTest.root",
         "hww": "input/SMEFT/Njets/expected/HWW/robustHesse_POSTFIT_HWW.root",
@@ -43,10 +44,25 @@ ggH_production_files = {
         "httboost": "{}/differentials/httboost/ggH_SMEFTatNLO_pt_h.json",
     },
     "Njets": {
-        "hgg": "{}/differentials/hgg/ggH_SMEFTatNLO_n_jets_eta2p5.json",
+        "hgg": "{}/differentials/hgg/ggH_SMEFTatNLO_njets.json",
         "hzz": "{}/differentials/hzz/ggH_SMEFTatNLO_njets.json",
         "hww": "{}/differentials/hww/ggH_SMEFTatNLO_njets.json",
         "htt": "{}/differentials/htt/ggH_SMEFTatNLO_njets.json",
+    },
+}
+
+full_production_files = {
+    "smH_PTH": {
+        "hgg": "{}/differentials/hgg/FullProduction_pt_h.json",
+        "hzz": "{}/differentials/hzz/FullProduction_pt_h.json",
+        "htt": "{}/differentials/htt/FullProduction_pt_h.json",
+        "hww": "{}/differentials/hww/FullProduction_pt_h.json",
+        "hbbvbf": "{}/differentials/hbbvbf/FullProduction_pt_h.json",
+        "httboost": "{}/differentials/httboost/FullProduction_pt_h.json",
+    },
+    "DeltaPhiJJ": {
+        "hgg": "{}/differentials/hgg/FullProduction_deltaphijj.json",
+        "hzz": "{}/differentials/hzz/FullProduction_deltaphijj.json",
     },
 }
 
@@ -113,7 +129,8 @@ def refactor_predictions(prediction_dir, channel, observable):
     decays_file = f"{prediction_dir}/decay.json"
     with open(decays_file, "r") as f:
         decays_dct = json.load(f)
-    production_file = ggH_production_files[observable][channel].format(prediction_dir)
+    # production_file = ggH_production_files[observable][channel].format(prediction_dir)
+    production_file = full_production_files[observable][channel].format(prediction_dir)
     with open(production_file, "r") as f:
         tmp_production_dct = json.load(f)
     dict_keys = list(tmp_production_dct.keys())
@@ -165,6 +182,14 @@ def refactor_predictions(prediction_dir, channel, observable):
         edges = [float(k) for k in sorted_keys] + [4.5]
         for old, new in convert.items():
             production_dct[new] = tmp_production_dct[old]
+    elif observable == "DeltaPhiJJ":
+        edges = [float(k) for k in sorted_keys] + [3.16]
+        for edge, next_edge in zip(edges[:-1], edges[1:]):
+            production_dct[
+                "r_DeltaPhiJJ_{}_{}".format(
+                    str(edge).replace(".0", ""), str(next_edge).replace(".0", "")
+                )
+            ] = tmp_production_dct[str(edge)]
 
     return decays_dct, production_dct, edges, sorted_keys
 
