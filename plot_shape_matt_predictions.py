@@ -25,7 +25,9 @@ def parse_arguments():
     parser.add_argument("--output-dir", type=str, default="outputs")
     parser.add_argument("--config-file", type=str, default="config.yaml")
     parser.add_argument(
-        "--channels", nargs="+", type=str, required=True, default=[], help=""
+        "--chan-obs",
+        type=str,
+        required=True,
     )
     parser.add_argument(
         "--skip-spectra", action="store_true", help="Skip plotting spectra"
@@ -89,9 +91,9 @@ def mu(pois, coeff_prod, coeff_decay, coeff_tot, fit_model="full"):
             decay = 1 + pois * coeff_decay[0]
             tot = 1 + pois * coeff_tot[0]
         else:
-            prod = 1 + pois * coeff_prod[0] + pois ** 2 * coeff_prod[1]
-            decay = 1 + pois * coeff_decay[0] + pois ** 2 * coeff_decay[1]
-            tot = 1 + pois * coeff_tot[0] + pois ** 2 * coeff_tot[1]
+            prod = 1 + pois * coeff_prod[0] + pois**2 * coeff_prod[1]
+            decay = 1 + pois * coeff_decay[0] + pois**2 * coeff_decay[1]
+            tot = 1 + pois * coeff_tot[0] + pois**2 * coeff_tot[1]
 
         return prod * (decay / tot)
 
@@ -155,8 +157,11 @@ def main(args):
     pois_dct = yaml.safe_load(open(pois_file))
     pois = list(pois_dct.keys())
 
+    with open(args.chan_obs) as f:
+        chan_obs = json.load(f)
+    chan_obs_string = args.chan_obs.split("/")[-1].replace(".json", "")
     decays_dct, production_dct, edges = refactor_predictions_multichannel(
-        args.prediction_dir, {channel: "smH_PTH" for channel in args.channels}
+        args.prediction_dir, chan_obs
     )
     # print(production_dct)
 
@@ -222,7 +227,7 @@ def main(args):
         print(f"Plotting parabolas for {poi}")
         poi_range = np.linspace(pois_dct[poi]["min"], pois_dct[poi]["max"], 101)
         fig, ax = plt.subplots()
-        for channel in args.channels:
+        for channel, obs in chan_obs.items():
             production_coeffs, decay_coeffs, tot_coeffs = get_coeffs(
                 poi, production_dct[channel], decays_dct, channel
             )
@@ -258,17 +263,17 @@ def main(args):
         # mplhep boilerplate
         hep.cms.label(loc=0, data=True, llabel="Internal", lumi=138, ax=ax)
         fig.savefig(
-            f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_{args.fit_model}_1D.pdf"
+            f"{args.output_dir}/{poi}_{chan_obs_string}_{args.fit_model}_1D.pdf"
         )
         fig.savefig(
-            f"{args.output_dir}/{poi}_{'-'.join(args.channels)}_{args.fit_model}_1D.png"
+            f"{args.output_dir}/{poi}_{chan_obs_string}_{args.fit_model}_1D.png"
         )
         plt.close(fig)
 
     # shapes
     if not args.skip_spectra:
         colors = ("red", "blue", "green", "purple")
-        for channel in args.channels:
+        for channel, obs in chan_obs.items():
             # plot one figure per POI with the spectrum
             print(f"Plotting spectra for channel {channel}...")
             mass = 125.38

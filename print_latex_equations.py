@@ -9,6 +9,7 @@ python print_latex_equations.py
 import argparse
 import yaml
 import json
+import math
 from pylatex import LongTable, NoEscape
 from utils import refactor_predictions_multichannel, max_to_matt
 from differential_combination_postprocess.utils import setup_logging
@@ -38,6 +39,19 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def frexp10(x):
+    exp = int(math.floor(math.log10(abs(x))))
+    return x / 10**exp, exp
+
+
+def latex_scientific_notation(num):
+    mantissa, exp = frexp10(num)
+    if exp > -1:
+        return r"{0:.2f}".format(mantissa)
+    else:
+        return r"{0:.2f} \times 10^{{{1}}}".format(mantissa, exp)
+
+
 def get_linearised_string(production_dct, decays_dct, pois, channel):
     string = "1 "
     strings = []
@@ -53,7 +67,7 @@ def get_linearised_string(production_dct, decays_dct, pois, channel):
             coeff -= decays_dct["tot"][look_for]
         if coeff != 0:
             # round coeff to 3 decimals and convert to string
-            coeff_str = f"{coeff:.3f}"
+            coeff_str = latex_scientific_notation(coeff)
             start = "+" if coeff > 0 else ""
             poi_name = SMEFT_parameters_labels[poi]
             poi_name = poi_name.replace("$", "")
@@ -87,7 +101,7 @@ def get_full_equation_part(dct, pois):
         look_for = f"A_{poi}"
         if look_for in dct:
             coeff = dct[look_for]
-            coeff_str = f"{coeff:.3f}"
+            coeff_str = latex_scientific_notation(coeff)
             start = "+" if coeff > 0 else ""
             string += f"{start} {coeff_str} \cdot {poi_name}"
             cnt += 1
@@ -98,7 +112,7 @@ def get_full_equation_part(dct, pois):
         look_for = f"B_{poi}_2"
         if look_for in dct:
             coeff = dct[look_for]
-            coeff_str = f"{coeff:.3f}"
+            coeff_str = latex_scientific_notation(coeff)
             start = "+" if coeff > 0 else ""
             string += f"{start} {coeff_str} \cdot {poi_name}^2"
             cnt += 1
@@ -112,7 +126,7 @@ def get_full_equation_part(dct, pois):
             look_for = f"B_{poi}_{poi2}"
             if look_for in dct:
                 coeff = dct[look_for]
-                coeff_str = f"{coeff:.3f}"
+                coeff_str = latex_scientific_notation(coeff)
                 start = "+" if coeff > 0 else ""
                 string += f"{start} {coeff_str} \cdot {poi_name} \cdot {poi2_name}"
                 cnt += 1
