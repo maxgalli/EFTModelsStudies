@@ -20,6 +20,7 @@ from utils import (
     robusthesse_paths,
     max_to_matt,
     ggH_production_files,
+    full_production_files,
 )
 
 from pca import get_p_ij, plot_rotation_matrix, rotate_back
@@ -35,7 +36,10 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--channels", nargs="+", type=str, required=True, default=[], help=""
+        "--config",
+        type=str,
+        required=True,
+        help="JSON file containing a dictionary channl:observable",
     )
 
     parser.add_argument("--output-dir", type=str, required=True, help="")
@@ -67,33 +71,34 @@ def main(args):
     all_wilson_coeffs = []
     for k, v in wilson_coeffs.items():
         all_wilson_coeffs += v
+    with open(args.config, "r") as f:
+        config = json.load(f)
+    config_name = args.config.split("/")[-1].split(".")[0]
     decays_dct, production_dct_of_dcts, edges_dct = refactor_predictions_multichannel(
-        args.prediction_dir, args.channels
+        args.prediction_dir, config
     )
     mus_dct = {}
-    for channel in args.channels:
+    for channel in config:
         mus_dct[channel] = list(production_dct_of_dcts[channel].keys())
 
     C_diff_inv_dct = {}
 
-    for channel in args.channels:
+    for channel, observable in config.items():
         logger.info(f"Processing channel {channel} for C_diff_inv")
         # Build C_diff
         # c_diff = np.random.rand(len(production_dct), len(production_dct)) # debug
         me = MatricesExtractor(mus_dct[channel])
-        me.extract_from_robusthesse(robusthesse_paths[channel])
+        me.extract_from_robusthesse(robusthesse_paths[observable][channel])
         C_diff = me.matrices["hessian_covariance"]
         C_diff_inv_dct[channel] = linalg.inv(C_diff)
 
-    C_diff_inv = block_diag(
-        [C_diff_inv_dct[channel] for channel in args.channels]
-    ).toarray()
+    C_diff_inv = block_diag([C_diff_inv_dct[channel] for channel in config]).toarray()
 
     rotation_matrices = {}
     eigenvalues = []
     for submodel_name in submodel_names:
         P_dct = {}
-        for channel in args.channels:
+        for channel, observable in config.items():
             # Build P
             lol = []
             for mu in mus_dct[channel]:
@@ -115,7 +120,7 @@ def main(args):
                 f"P shape {P_dct[channel].shape} for channel {channel} in submodel {submodel_name}"
             )
         # concatenate Ps along y
-        P = np.concatenate([P_dct[channel] for channel in args.channels], axis=0)
+        P = np.concatenate([P_dct[channel] for channel in config], axis=0)
         logger.debug(f"Concatenated P shape {P.shape} in submodel {submodel_name}")
 
         # eigenvalue decomposition
@@ -158,16 +163,16 @@ def main(args):
             rot,
             eigenvalues,
             all_wilson_coeffs,
-            args.channels,
+            config_name,
             output_dir,
             full=is_full,
             suffix=f"-groups-{'_'.join(submodel_names)}",
             ev_names=ev_names,
         )
 
-    base_output_dir = f"{args.prediction_dir}_rotated{model_name}{''.join(args.channels)}{''.join(submodel_names)}"
+    base_output_dir = f"{args.prediction_dir}_rotated{model_name}{config_name}{''.join(submodel_names)}"
 
-    for channel in args.channels:
+    for channel, observable in config.items():
         mus = mus_dct[channel]
         production_dct = production_dct_of_dcts[channel]
         edges = edges_dct[channel]
@@ -187,14 +192,15 @@ def main(args):
         logger.info(f"Created output directory {channel_output_dir}")
 
         # dump production
-        file_name = ggH_production_files[channel].split("/")[-1]
+        # file_name = ggH_production_files[channel].split("/")[-1]
+        file_name = full_production_files[observable][channel].split("/")[-1]
         with open(f"{channel_output_dir}/{file_name}", "w") as f:
             json.dump(production_dct_rot, f, indent=4)
         logger.info(f"Dumped rotated production to {channel_output_dir}/{file_name}")
 
     # dump decay
     decays_dct_rot = {}
-    for dec in [*[max_to_matt[c] for c in args.channels], "tot"]:
+    for dec in [*[max_to_matt[c] for c in config], "tot"]:
         decays_dct_rot[dec] = rotate_back(
             decays_dct[dec], rot, all_wilson_coeffs, ev_names
         )

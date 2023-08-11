@@ -118,7 +118,7 @@ def plot_rotation_matrix(
     rot,
     eigenvalues,
     wilson_coeffs,
-    channels,
+    config_name,
     output_dir,
     full=False,
     suffix="",
@@ -182,11 +182,11 @@ def plot_rotation_matrix(
     # save
     logging.info(f"Saving PCA plot to {output_dir}")
     fig.savefig(
-        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.png",
+        f"{output_dir}/PCA-{config_name}{'-Full' if full else ''}{suffix}.png",
         bbox_inches="tight",
     )
     fig.savefig(
-        f"{output_dir}/PCA-{''.join(channels)}{'-Full' if full else ''}{suffix}.pdf",
+        f"{output_dir}/PCA-{config_name}{'-Full' if full else ''}{suffix}.pdf",
         bbox_inches="tight",
     )
 
@@ -198,7 +198,7 @@ def plot_rotation_matrix(
             ev_dct[f"EV{i}"] = {}
             for j, wc in enumerate(wilson_coeffs):
                 ev_dct[f"EV{i}"][wc] = rot[i, j]
-        with open(f"{output_dir}/PCA-{''.join(channels)}-Full{suffix}.json", "w") as f:
+        with open(f"{output_dir}/PCA-{config_name}-Full{suffix}.json", "w") as f:
             json.dump(ev_dct, f, indent=4)
 
 
@@ -367,8 +367,8 @@ def main(args):
 
         # Build P
         lol = []
-        print(mus_dct[channel])
-        print(production_dct_of_dcts[channel].keys())
+        # print(mus_dct[channel])
+        # print(production_dct_of_dcts[channel].keys())
         for mu in mus_dct[channel]:
             row = []
             for wc in wilson_coeffs:
@@ -448,13 +448,13 @@ def main(args):
     # l = np.array([3, 2, 0.00001])
     # wilson_coeffs = ["C7", "C8", "C9"]
     plot_rotation_matrix(
-        rot, l, wilson_coeffs, list(config.keys()), output_dir, suffix=f"-{args.how}"
+        rot, l, wilson_coeffs, config_name, output_dir, suffix=f"-{args.how}"
     )
     plot_rotation_matrix(
         rot,
         l,
         wilson_coeffs,
-        list(config.keys()),
+        config_name,
         output_dir,
         full=True,
         suffix=f"-{args.how}",
