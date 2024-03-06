@@ -2,6 +2,7 @@
 To be run with python3 and https://github.com/maxgalli/DifferentialCombinationPostProcess
 """
 import argparse
+import yaml
 import os
 import json
 import ROOT
@@ -148,11 +149,23 @@ def main(args):
             f"{args.input_dir}/{directory}" for directory in categories_numbers
         ]
 
+        config_file = f"/work/gallim/DifferentialCombination_home/DiffCombOrchestrator/DifferentialCombinationRun2/metadata/xs_POIs/SM/{observable}/plot_config.yml"
+        with open(config_file, "r") as f:
+            cfg = yaml.load(f, Loader=yaml.FullLoader)
+
         diff_spectrum = DifferentialSpectrum(
             observable,
             category,
             pois,
             category_input_dirs,
+            skip_best=cfg[category]["skip_best"]
+            if (category in cfg and "skip_best" in cfg[category])
+            else False,
+            cut_strings={
+                p: cfg[category][p]["cut_strings"] for p in pois if p in cfg[category]
+            }
+            if category in cfg
+            else None,
             from_singles=True if args.channel in are_singles else False,
         )
 
@@ -166,12 +179,12 @@ def main(args):
             values[category][poi]["Up01Sigma"] = (
                 diff_spectrum.scans[poi].mu_up - diff_spectrum.scans[poi].mu
                 if args.channel in are_singles
-                else diff_spectrum.scans[poi].up68_unc
+                else diff_spectrum.scans[poi].up68_unc[0]
             )
             values[category][poi]["Down01Sigma"] = (
                 abs(diff_spectrum.scans[poi].mu_down - diff_spectrum.scans[poi].mu)
                 if args.channel in are_singles
-                else diff_spectrum.scans[poi].down68_unc
+                else diff_spectrum.scans[poi].down68_unc[0]
             )
 
         logger.info(f"Values for {category}: {values[category]}")
