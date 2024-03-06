@@ -131,7 +131,7 @@ def plot_rotation_matrix(
     fig, ax = plt.subplots()
     cmap = plt.get_cmap("bwr")
     # plot only for eigenvalus > 0.001
-    threshold = 0.001
+    threshold = 0.011
     eigenvalues_mask = np.real(eigenvalues) > threshold
     if not full:
         eigenvalues = eigenvalues[eigenvalues_mask]

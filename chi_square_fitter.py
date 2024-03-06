@@ -75,6 +75,10 @@ def parse_arguments():
     )
 
     parser.add_argument(
+        "--skip-profiled", action="store_true", help="Skip profiled scans"
+    )
+
+    parser.add_argument(
         "--multiprocess",
         action="store_true",
         help="Use multiprocessing to speed up the fit",
@@ -616,16 +620,18 @@ def main(args):
             **results["expected_fixed"],
             **fitter.scan2D(how="fixed", expected=True),
         }
-    results["expected_profiled"] = fitter.scan(
-        how="profiled", expected=True, points=150, multiprocess=multiple_workers
-    )
+    if not args.skip_profiled:
+        results["expected_profiled"] = fitter.scan(
+            how="profiled", expected=True, points=150, multiprocess=multiple_workers
+        )
     if not args.skip2D:
-        results["expected_profiled"] = {
-            **results["expected_profiled"],
-            **fitter.scan2D(
-                how="profiled", expected=True, multiprocess=multiple_workers
-            ),
-        }
+        if not args.skip_profiled:
+            results["expected_profiled"] = {
+                **results["expected_profiled"],
+                **fitter.scan2D(
+                    how="profiled", expected=True, multiprocess=multiple_workers
+                ),
+            }
     if args.with_observed:
         results["observed_fixed"] = fitter.scan(how="fixed", expected=False)
         if not args.skip2D:
@@ -633,12 +639,14 @@ def main(args):
                 **results["observed_fixed"],
                 **fitter.scan2D(how="fixed", expected=False),
             }
-        results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
+        if not args.skip_profiled:
+            results["observed_profiled"] = fitter.scan(how="profiled", expected=False)
         if not args.skip2D:
-            results["observed_profiled"] = {
-                **results["observed_profiled"],
-                **fitter.scan2D(how="profiled", expected=False),
-            }
+            if not args.skip_profiled:
+                results["observed_profiled"] = {
+                    **results["observed_profiled"],
+                    **fitter.scan2D(how="profiled", expected=False),
+                }
     if multiple_workers:
         results = client.gather(results)
     for k, v in results.items():
