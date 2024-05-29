@@ -77,6 +77,9 @@ def parse_arguments():
     parser.add_argument(
         "--skip-profiled", action="store_true", help="Skip profiled scans"
     )
+    parser.add_argument(
+        "--skip-correlation", action="store_true", help="Skip correlation matrix"
+    )
 
     parser.add_argument(
         "--multiprocess",
@@ -607,7 +610,7 @@ def main(args):
         production_dct,
         decays_dct,
         fit_model,
-        exp_cova_matrix=cov_matrices_exp,
+        #exp_cova_matrix=cov_matrices_exp,
     )
 
     logger.info("First printing scaling equations")
@@ -660,9 +663,10 @@ def main(args):
         cluster.close()
 
     # compute correlation matrix
-    postfit_corr_matrix_exp = fitter.compute_correlation_matrix(expected=True)
-    if args.with_observed:
-        postfit_corr_matrix_obs = fitter.compute_correlation_matrix(expected=False)
+    if not args.skip_correlation:
+        postfit_corr_matrix_exp = fitter.compute_correlation_matrix(expected=True)
+        if args.with_observed:
+            postfit_corr_matrix_obs = fitter.compute_correlation_matrix(expected=False)
 
     # plot
     oned_styles = {
@@ -738,19 +742,20 @@ def main(args):
         fig.savefig(f"{output_dir}/{poi}_{config_name}_{fit_model}_{args.suffix}.pdf")
         plt.close(fig)
     # plot matrices
-    print(postfit_corr_matrix_exp)
-    print_corr_matrix(
-        postfit_corr_matrix_exp,
-        pois,
-        f"{output_dir}/corr_matrix_postfit_exp_{config_name}_{fit_model}_{args.suffix}.png",
-    )
-    if args.with_observed:
-        print(postfit_corr_matrix_obs)
+    if not args.skip_correlation:
+        print(postfit_corr_matrix_exp)
         print_corr_matrix(
-            postfit_corr_matrix_obs,
+            postfit_corr_matrix_exp,
             pois,
-            f"{output_dir}/corr_matrix_postfit_obs_{config_name}_{fit_model}_{args.suffix}.png",
+            f"{output_dir}/corr_matrix_postfit_exp_{config_name}_{fit_model}_{args.suffix}.png",
         )
+        if args.with_observed:
+            print(postfit_corr_matrix_obs)
+            print_corr_matrix(
+                postfit_corr_matrix_obs,
+                pois,
+                f"{output_dir}/corr_matrix_postfit_obs_{config_name}_{fit_model}_{args.suffix}.png",
+            )
     if not args.skip2D:
         pois_pairs = list(combinations(pois, 2))
         for poi1, poi2 in pois_pairs:
